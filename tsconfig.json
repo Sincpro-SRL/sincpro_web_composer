@@ -19,6 +19,15 @@
       "@sincpro/web-composer/*": ["./src/*"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx"],
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "tests/**/*.ts",
+    "tests/**/*.tsx",
+    "stories/**/*.ts",
+    "stories/**/*.tsx",
+    ".storybook/*.ts",
+    "vite.config.ts"
+  ],
   "exclude": ["node_modules", "dist"]
 }

@@ -16,6 +16,8 @@ nvm use       # Node 26, from .nvmrc
 make init     # pre-commit + yarn install
 make test
 make build
+make dev      # Storybook on :6007 — one story per use case
+make smoke    # every story in headless Chrome, play functions included
 ```
 
 Every operation — local or CI — goes through the `Makefile`; run `make` to list the targets.
@@ -23,6 +25,7 @@ Every operation — local or CI — goes through the `Makefile`; run `make` to l
 ```text
 src/      the published source (imports itself as @sincpro/web-composer)
 tests/    node --test over the TypeScript sources
+stories/  the use cases, over two fake domains (support, accounting) in stories/support/
 ```
 
 ## CI/CD
