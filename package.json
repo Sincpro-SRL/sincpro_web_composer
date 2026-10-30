@@ -1,6 +1,6 @@
 {
   "name": "@sincpro/web-composer",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "The Sincpro multitasking workspace for React: tabs, panels, peek, global panels and ⌘K over references.",
   "type": "module",
   "main": "./dist/index.js",
