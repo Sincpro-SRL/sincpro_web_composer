@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./domain": {
+      "types": "./dist/domain/index.d.ts",
+      "default": "./dist/domain/index.js"
     }
   },
   "publishConfig": {
@@ -23,25 +27,39 @@
     "printWidth": 94
   },
   "peerDependencies": {
+    "@sincpro/web-ui": "*",
     "react": ">=19",
     "react-dom": ">=19"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@sincpro/web-ui": "^0.1.0",
+    "@storybook/addon-a11y": "10.6.5",
+    "@storybook/addon-docs": "10.6.5",
+    "@storybook/addon-mcp": "10.6.5",
+    "@storybook/react-vite": "10.6.5",
+    "@tailwindcss/vite": "4.3.3",
+    "@tanstack/react-table": "^9.3.1",
+    "@tanstack/react-virtual": "^3.14.24",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
     "eslint": "^10.14.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-simple-import-sort": "^14.0.0",
     "prettier": "^3.9.10",
+    "puppeteer-core": "^25.16.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",
+    "storybook": "10.6.5",
+    "tailwindcss": "4.3.3",
     "tsc-alias": "^1.9.9",
     "tsx": "^4.23.15",
     "typescript": "~6.0.3",
-    "typescript-eslint": "^8.72.1"
+    "typescript-eslint": "^8.72.1",
+    "vite": "8.3.5"
   },
   "keywords": [
     "workspace",
@@ -58,5 +76,9 @@
   "license": "MIT",
   "engines": {
     "node": ">=26"
+  },
+  "dependencies": {
+    "@atlaskit/pragmatic-drag-and-drop": "^4.0.0",
+    "lucide-react": "^1.65.0"
   }
 }

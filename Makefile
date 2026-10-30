@@ -15,9 +15,12 @@ help:
 	@echo "  test            node --test over the TypeScript sources"
 	@echo "  verify-format   format + lint + doctor, then fail if the tree is dirty (CI)"
 	@echo "  build           compile into dist/"
+	@echo "  dev             Storybook on :6007"
+	@echo "  storybook       static Storybook into storybook-static/"
+	@echo "  smoke           open every story in headless Chrome; fail on errors or blanks"
 	@echo "  update-version  VERSION=x.y.z — release pipeline only, never by hand"
 	@echo "  publish         build + publish to NPM (release pipeline)"
-	@echo "  clean           remove dist/ and node_modules/"
+	@echo "  clean           remove dist/, storybook-static/ and node_modules/"
 
 prepare-environment:
 	@pipx install pre-commit
@@ -87,6 +90,16 @@ build:
 	@npx tsc-alias -p tsconfig.build.json
 	@echo "✓ Build ready in ./dist (JS + .d.ts, $(PACKAGE) resolved to relative)"
 
+dev:
+	@npx storybook dev -p 6007 --no-open
+
+storybook:
+	@npx storybook build -o storybook-static
+
+# Every story opened in a headless Chrome: fails on a console error or a blank story.
+smoke:
+	@node --import tsx .storybook/smoke.ts
+
 # `--package-lock=false`: npm (unlike yarn, which manages this repo's installs) doesn't read
 # yarn.lock, so without it `npm version` rebuilds a dependency tree against the real registry
 # and writes a package-lock.json this repo doesn't keep.
@@ -118,8 +131,8 @@ deploy:
 	@echo "Deploy not applicable for library packages"
 
 clean:
-	@rm -rf dist node_modules
+	@rm -rf dist storybook-static node_modules
 	@echo "✓ Cleaned"
 
 .PHONY: help prepare-environment install init typecheck format lint doctor test verify-format build \
-	update-version publish deploy clean
+	dev storybook smoke update-version publish deploy clean
