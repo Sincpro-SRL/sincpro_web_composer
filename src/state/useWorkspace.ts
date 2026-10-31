@@ -1,4 +1,4 @@
-import type { Workspace, WorkspaceApi } from "@sincpro/web-composer/domain/index";
+import type { Crumb, Workspace, WorkspaceApi } from "@sincpro/web-composer/domain/index";
 import {
   createWorkspaceStore,
   type StoreOptions,
@@ -44,6 +44,13 @@ export function useWorkspaceContext(api: WorkspaceApi) {
     focused: useSyncExternalStore(subscribe, focused, focused),
     selection: useSyncExternalStore(subscribe, selection, selection),
   };
+}
+
+/** The breadcrumb that FOLLOWS the workspace: a name a view gives later (`setTitle`) redraws
+ *  it. `api.crumbs()` read during render is what it was then — nothing redraws a view when a
+ *  title changes, and the API it holds stays the same object on purpose. */
+export function useCrumbs(api: WorkspaceApi): readonly Crumb[] {
+  return useSyncExternalStore(api.context.subscribe, api.crumbs, api.crumbs);
 }
 
 export type { StoreOptions as UseWorkspaceOptions, WorkspaceStore };

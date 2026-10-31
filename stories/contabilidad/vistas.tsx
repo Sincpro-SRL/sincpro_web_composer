@@ -2,6 +2,7 @@ import {
   Destination,
   type ResourceRef,
   Surface,
+  useCrumbs,
   useWorkspaceContext,
   type ViewProps,
   type WorkspaceApi,
@@ -152,6 +153,7 @@ function useSelection<T>(
  * camino) y el control de la derecha lo mira en un vistazo.
  */
 export function Asientos({ resource, api }: ViewProps) {
+  const crumbs = useCrumbs(api);
   const all = useAsientos();
   const tipo = resource.params?.["tipo"];
   const items = useMemo(
@@ -177,7 +179,7 @@ export function Asientos({ resource, api }: ViewProps) {
         empty={{ sentence: "No hay asientos." }}
       >
         <List.Bar>
-          <List.Crumbs crumbs={api.crumbs()} />
+          <List.Crumbs crumbs={crumbs} />
           <List.Identity
             title="Asientos contables"
             description="facturas, pagos y extractos bancarios"
@@ -237,6 +239,7 @@ export function Asientos({ resource, api }: ViewProps) {
  * al asiento de donde viene.
  */
 export function Apuntes({ resource, api }: ViewProps) {
+  const crumbs = useCrumbs(api);
   const cuenta = resource.params?.["cuenta"];
   const asiento = resource.params?.["asiento"];
   const items = useMemo(
@@ -269,7 +272,7 @@ export function Apuntes({ resource, api }: ViewProps) {
         empty={{ sentence: "No hay apuntes." }}
       >
         <List.Bar>
-          <List.Crumbs crumbs={api.crumbs()} />
+          <List.Crumbs crumbs={crumbs} />
           <List.Identity
             title={
               cuenta === undefined
@@ -395,10 +398,11 @@ function LineasCompactas({ asiento }: { asiento: string }) {
 
 /**
  * UN asiento: su riel con la miga, los hechos, y sus líneas. La miga la dibuja el `Record` con
- * lo que el composer le da (`api.crumbs()`): en la página es el camino completo; en una ventana
+ * lo que el composer le da (`useCrumbs(api)`): en la página es el camino completo; en una ventana
  * o un vistazo es sólo el asiento. Quien lo abre en una ventana puede agrandarlo a página.
  */
 export function AsientoView({ resource, api }: ViewProps) {
+  const crumbs = useCrumbs(api);
   const all = useAsientos();
   const a = asientoById(all, resource.id);
   if (a === undefined)
@@ -415,7 +419,7 @@ export function AsientoView({ resource, api }: ViewProps) {
           }}
         >
           <Record.Rail>
-            <Record.Crumbs crumbs={api.crumbs()} />
+            <Record.Crumbs crumbs={crumbs} />
             <Record.Actions>
               <Button
                 size="sm"
@@ -508,6 +512,7 @@ export function AsientoView({ resource, api }: ViewProps) {
  * publica como selección; el panel de al lado —otra vista, quizá de otro equipo— lo sigue.
  */
 export function Conciliar({ api }: ViewProps) {
+  const crumbs = useCrumbs(api);
   const all = useAsientos();
   const items = useMemo(
     () => all.filter((a) => a.tipo === "extracto" && a.estado !== "conciliado"),
@@ -531,7 +536,7 @@ export function Conciliar({ api }: ViewProps) {
         empty={{ sentence: "Todo está conciliado." }}
       >
         <List.Bar>
-          <List.Crumbs crumbs={api.crumbs()} />
+          <List.Crumbs crumbs={crumbs} />
           <List.Identity
             title="Extracto bancario"
             description="marca una línea y concilíala con lo pendiente"
@@ -695,6 +700,7 @@ export function Elegir({ resource, api }: ViewProps) {
 /** El formulario de una factura. El contacto y la cuenta son many2one: se eligen tipeando, se
  *  abren en una ventana, se buscan en una lista que responde al campo. */
 export function FacturaNueva({ api }: ViewProps) {
+  const crumbs = useCrumbs(api);
   const [contacto, setContacto] = useState<string | null>(null);
   const [cuenta, setCuenta] = useState<string | null>("4.1.1");
   const [notas, setNotas] = useState("");
@@ -702,14 +708,21 @@ export function FacturaNueva({ api }: ViewProps) {
      preguntan antes de tirarlo. */
   const dirty = contacto !== null || notas !== "";
   useEffect(() => api.setDirty(dirty), [api, dirty]);
+  /* Con el contacto elegido, la factura ya tiene un nombre: la miga y el marco lo muestran en
+     vez de «Factura nueva». */
+  const nombre = contacto === null ? null : `Factura a ${contactoNombre(contacto)}`;
+  useEffect(() => api.setTitle(nombre), [api, nombre]);
 
   return (
     <div className={api.surface === Surface.Page ? "bg-ground p-4" : "bg-ground"}>
       <Record
-        identity={{ title: "Factura nueva", tag: { label: "borrador", tone: "neutral" } }}
+        identity={{
+          title: nombre ?? "Factura nueva",
+          tag: { label: "borrador", tone: "neutral" },
+        }}
       >
         <Record.Rail>
-          <Record.Crumbs crumbs={api.crumbs()} />
+          <Record.Crumbs crumbs={crumbs} />
           <Record.Actions>
             {/* `close`: en la página vuelve atrás, en un panel o el vistazo lo cierra. */}
             <Button size="sm" role="ghost" onClick={api.close}>

@@ -55,6 +55,9 @@ export type ApiFactoryOptions = {
   defaultOpen?: Destination;
 };
 
+/** A panel's frame already says what it shows. One array, so it reads as «unchanged». */
+const NO_CRUMBS: readonly Crumb[] = [];
+
 /** A chooser open in a panel, waiting for its answer. */
 type Pending = (value: ResourceRef) => void;
 
@@ -111,7 +114,7 @@ export function createApiFactory(
 
     /** In the peek the page's crumbs leave the drawer — a crumb is the page — and its own steps
      *  stay in it. */
-    function crumbs(): readonly Crumb[] {
+    function freshCrumbs(): readonly Crumb[] {
       const w = store.get();
       const page = w.page ?? resource;
       const pageCrumbs = w.trail.map((past, i): Crumb => ({
@@ -129,6 +132,19 @@ export function createApiFactory(
         })),
         { label: titleOf(w.peek ?? resource) },
       ];
+    }
+
+    /** The SAME array until a label or the length of the trail changes: `useCrumbs` subscribes
+     *  with it, and a new array per read would redraw forever. The links are by position, so
+     *  equal labels on an equal trail are an equal breadcrumb. */
+    let last: { key: string; crumbs: readonly Crumb[] } | null = null;
+    function crumbs(): readonly Crumb[] {
+      if (target.surface === Surface.Panel) return NO_CRUMBS;
+      const next = freshCrumbs();
+      const key = `${store.get().trail.length}\u0000${next.map((c) => c.label).join("\u0000")}`;
+      if (last?.key === key) return last.crumbs;
+      last = { key, crumbs: next };
+      return next;
     }
 
     return {
@@ -176,7 +192,7 @@ export function createApiFactory(
 
       focus: () => store.focusPanel(me),
 
-      crumbs: () => (target.surface === Surface.Panel ? [] : crumbs()),
+      crumbs,
 
       setTitle: (title) => {
         if (here()) store.setTitle(resource, title);
