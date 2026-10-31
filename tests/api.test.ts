@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
 
 import {
+  Composer,
   createApiFactory,
   createWorkspaceStore,
   PanelHost,
@@ -12,6 +12,7 @@ import {
   Destination,
   EMPTY,
   openPanel,
+  PEEK,
   push,
   Surface,
   type ViewSpec,
@@ -19,11 +20,13 @@ import {
 } from "@sincpro/web-composer/domain/index";
 import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { test } from "vitest";
 
 const ASIENTOS = { domain: "contabilidad", kind: "asientos" };
 const FAC = { domain: "contabilidad", kind: "asiento", id: "FAC-12" };
 const PAG = { domain: "contabilidad", kind: "asiento", id: "PAG-7" };
 const APUNTE = { domain: "contabilidad", kind: "apunte", id: "A-1" };
+const NUEVO = { domain: "contabilidad", kind: "nuevo" };
 
 const View = () => createElement("p", null, "view");
 const SPECS: readonly ViewSpec[] = [
@@ -46,6 +49,7 @@ const SPECS: readonly ViewSpec[] = [
     title: (r) => `Apunte ${r.id}`,
     load: async () => View,
   },
+  { domain: "contabilidad", kind: "nuevo", title: () => "Nuevo", load: async () => View },
 ];
 const REGISTRY = createRegistry(SPECS);
 const paint = (el: ReactElement) => renderToStaticMarkup(el);
@@ -86,11 +90,18 @@ test("`defaultOpen` changes what a plain `open` does", () => {
   assert.equal(store.get().page?.kind, "asientos", "no page was opened");
 });
 
-test("opening the page from a peek leaves the peek", () => {
+test("inside the peek a click drills IN the drawer; only the page, asked by name, leaves it", () => {
   const { store, factory } = setup();
   store.peek(FAC);
   factory.for(FAC, { surface: Surface.Peek }).open(APUNTE);
-  assert.equal(store.get().peek, null);
+  assert.equal(store.get().peek?.id, "A-1", "reading does not throw the reader out");
+  assert.equal(store.get().page?.kind, "asientos");
+
+  factory.for(APUNTE, { surface: Surface.Peek }).back();
+  assert.equal(store.get().peek?.id, "FAC-12", "and ← comes back");
+
+  factory.for(FAC, { surface: Surface.Peek }).open(APUNTE, { to: Destination.Page });
+  assert.equal(store.get().peek, null, "the drawer sat over a page that is gone");
   assert.equal(store.get().page?.id, "A-1");
 });
 
@@ -114,13 +125,24 @@ test("the breadcrumb is the trail plus this page, and a crumb goes back", () => 
   assert.equal(store.get().page?.kind, "asientos");
 });
 
-test("outside the page there is no breadcrumb: the frame already says it", () => {
+test("a panel has no breadcrumb; the peek's crumbs leave the drawer or step back in it", () => {
   const { store, factory, page } = setup();
   page.open(FAC, { to: Destination.Window });
   const id = store.get().panels[0]!.id;
   assert.deepEqual(factory.for(FAC, { surface: Surface.Panel, panelId: id }).crumbs(), []);
+
   page.open(PAG, { to: Destination.Peek });
-  assert.deepEqual(factory.for(PAG, { surface: Surface.Peek }).crumbs(), []);
+  factory.for(PAG, { surface: Surface.Peek }).navigate(APUNTE);
+  const crumbs = factory.for(APUNTE, { surface: Surface.Peek }).crumbs();
+  assert.deepEqual(
+    crumbs.map((c) => c.label),
+    ["Asientos", "Asiento PAG-7", "Apunte A-1"],
+  );
+
+  crumbs[1]!.onClick!();
+  assert.equal(store.get().peek?.id, "PAG-7", "a step of the drawer stays in it");
+  factory.for(PAG, { surface: Surface.Peek }).crumbs()[0]!.onClick!();
+  assert.equal(store.get().peek, null, "the page's crumb leaves it");
 });
 
 test("`expand` turns a window or the peek into the page; `close` closes ITS container", () => {
@@ -249,4 +271,80 @@ test("an ownerless reference draws as a notice, not a hole", () => {
     html.includes("nobody:thing"),
     "with the whole reference, which is what lets you fix it",
   );
+});
+
+test("`replace` and `setParams` change the page without a crumb", () => {
+  const { store, factory, page } = setup();
+  page.setParams({ tipo: "factura" });
+  assert.equal(store.get().page?.params?.["tipo"], "factura");
+  assert.equal(store.get().trail.length, 0, "a filter is not a step back");
+
+  page.open(NUEVO);
+  factory.for(NUEVO, { surface: Surface.Page }).replace(FAC);
+  assert.equal(store.get().page?.id, "FAC-12");
+  assert.deepEqual(
+    store.get().trail.map((r) => r.kind),
+    ["asientos"],
+    "the form the record replaced is not in the way back",
+  );
+});
+
+test("a name given by a view shows in the crumbs, and a late one is ignored", () => {
+  const { store, factory, page } = setup();
+  page.open(FAC);
+  const fac = factory.for(FAC, { surface: Surface.Page });
+  fac.setTitle("Factura Acme");
+  page.open(PAG);
+  fac.setTitle("too late");
+
+  const labels = factory
+    .for(PAG, { surface: Surface.Page })
+    .crumbs()
+    .map((c) => c.label);
+  assert.deepEqual(labels, ["Asientos", "Factura Acme", "Asiento PAG-7"]);
+  assert.equal(store.get().titles["contabilidad:asiento/PAG-7"], undefined);
+});
+
+test("`close` on the page goes back: «Cancel» is one call wherever the form is", () => {
+  const { store, factory, page } = setup();
+  page.open(NUEVO);
+  factory.for(NUEVO, { surface: Surface.Page }).close();
+  assert.equal(store.get().page?.kind, "asientos");
+});
+
+test("from the peek, the selection and ⌘K's subject are the peek's, not the page's", () => {
+  const { store, factory, page } = setup();
+  page.open(FAC, { to: Destination.Peek });
+  factory.for(FAC, { surface: Surface.Peek }).select([APUNTE]);
+
+  assert.equal(store.get().selected?.by, PEEK);
+  assert.equal(page.context.focused()?.id, "FAC-12", "what I am reading");
+  store.closePeek();
+  assert.equal(store.get().selected, null, "and it goes with the drawer");
+  assert.equal(page.context.focused()?.kind, "asientos");
+});
+
+test("the design is the app's: a skin replaces icons and pieces, the rest stays default", () => {
+  const nobody = { domain: "nobody", kind: "thing" };
+  const store = createWorkspaceStore({
+    initial: openPanel(push(EMPTY, nobody), FAC, Zone.Right),
+  });
+  const html = paint(
+    createElement(Composer, {
+      workspace: store,
+      registry: REGISTRY,
+      skin: {
+        icons: { close: () => createElement("i", null, "my-close") },
+        Notice: ({ heading }) => createElement("mark", null, `my-notice: ${heading}`),
+        styles: false,
+      },
+    }),
+  );
+  assert.ok(html.includes("my-close"), "an icon of the app");
+  assert.ok(
+    html.includes("my-notice: Nobody can resolve this reference"),
+    "a piece of the app",
+  );
+  assert.ok(html.includes('aria-label="Minimize"'), "what was not passed keeps the default");
+  assert.ok(!html.includes("sincpro-web-composer"), "and without the default sheet");
 });

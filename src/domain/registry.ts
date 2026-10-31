@@ -30,23 +30,46 @@ export type WorkspaceApi = {
   self: ResourceRef;
   surface: Surface;
 
-  /** The one way to open a resource: `open(ref)` goes to the page, `open(ref, { to })` where
-   *  the caller says. From a peek or a window, opening the page leaves it where it is. */
+  /**
+   * The one way to open a resource: `open(ref)` goes where the workspace opens by default (the
+   * page), `open(ref, { to })` where the caller says. Opening the page from a window leaves the
+   * window where it is; from the peek it closes the drawer — it sat over a page that is no longer
+   * there. Inside the peek a plain `open(ref)` drills IN the drawer, and ← comes back: reading
+   * does not throw the reader out.
+   */
   open: (ref: ResourceRef, options?: OpenOptions) => void;
-  /** Change what THIS surface shows, without opening anything. */
+  /** Show `ref` HERE, remembering where it was: a crumb on the page, a step back in the peek. A
+   *  panel has no way back: it just changes. */
   navigate: (ref: ResourceRef) => void;
-  /** One page back in the breadcrumb. */
+  /** Show `ref` HERE without a step to come back to: the record a form just created, a filter. */
+  replace: (ref: ResourceRef) => void;
+  /** This resource with `params` merged (`""` removes one), in place: filters live in the
+   *  reference — they survive a reload, a link and a move to another surface. */
+  setParams: (params: Record<string, string>) => void;
+  /** One step back: the page's breadcrumb or the peek's own trail. Nothing in a panel. */
   back: () => void;
   /** A window, a side panel or the peek grows into the page. Nothing on the page itself. */
   expand: () => void;
-  /** Close the container: its panel or the peek drawer. */
+  /** Leave what this view is in: its panel or the peek closes; the page goes one step back.
+   *  «Cancel» on a form is this one call wherever the form was opened. */
   close: () => void;
   /** Request workspace focus so shortcuts talk to this view. */
   focus: () => void;
 
-  /** The way here, ready to draw: the pages before this one, each a link, and this one. Empty
-   *  outside the page: a panel's frame already says what it shows. */
+  /**
+   * The way here, ready for `List.Crumbs` / `Record.Crumbs`: the pages before, each a link, and
+   * this one. In the peek the page's crumbs leave the drawer and its own steps stay in it. Empty
+   * in a panel: its frame already says what it shows.
+   */
   crumbs: () => readonly Crumb[];
+  /** The name this resource goes by once loaded — the crumbs, the frame and the peek show it
+   *  instead of the `ViewSpec` title. `null` gives the title back. Ignored once this surface
+   *  shows something else, so a late answer cannot rename the wrong record. */
+  setTitle: (title: string | null) => void;
+  /** Something typed here would be lost. While it is, anything that would throw this view away
+   *  — a crumb, a close, a reset, the browser's back or a reload — asks first. Set it back to
+   *  `false` after saving, BEFORE leaving. */
+  setDirty: (dirty: boolean) => void;
 
   /** Publish what THIS surface has selected, so a detail panel or an assistant can follow it.
    *  An empty list clears it. */

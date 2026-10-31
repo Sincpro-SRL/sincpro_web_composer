@@ -11,7 +11,7 @@ import {
   searchEntries,
 } from "@sincpro/web-composer/domain/index";
 import { composerCopy } from "@sincpro/web-composer/shell/copy";
-import { Search } from "lucide-react";
+import { useSkin } from "@sincpro/web-composer/shell/skin";
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   useEffect,
@@ -31,9 +31,9 @@ import {
  *     ⇧Enter   a panel beside what I am on
  *     ⌘Enter   a window
  *
- * Built by hand because synthesis-ui has no palette. When this moves onto
- * `@sincpro/web-ui`, the drawing is its `CommandPalette` and only the
- * destinations stay here.
+ * Drawn here, with the composer's own skin: the composer depends on no design
+ * system. An application with its own palette keeps the destinations and the
+ * entries (`localEntries`, `searchEntries`) and draws them however it likes.
  */
 
 const SECTION_KEY = {
@@ -103,6 +103,7 @@ export function WorkspacePalette({
   onClose,
 }: WorkspacePaletteProps) {
   const copy = composerCopy().palette;
+  const SearchIcon = useSkin().icons.search;
   const listId = useId();
   const [query, setQuery] = useState("");
   const [cursor, setCursor] = useState(0);
@@ -152,22 +153,14 @@ export function WorkspacePalette({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-ink/30 px-4 pt-24"
+      className="sc-scrim"
       onPointerDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div
-        role="dialog"
-        aria-label={copy.label}
-        className="w-full max-w-xl overflow-hidden rounded-box border border-line-strong bg-surface shadow-window"
-      >
-        <div className="flex items-center gap-2 border-b border-line px-3">
-          <Search
-            className="size-(--size-icon-md) shrink-0 text-muted"
-            strokeWidth={2}
-            aria-hidden
-          />
+      <div role="dialog" aria-label={copy.label} className="sc-palette">
+        <div className="sc-palette-search">
+          <SearchIcon />
           <input
             autoFocus
             role="combobox"
@@ -184,18 +177,17 @@ export function WorkspacePalette({
               setCursor(0);
             }}
             onKeyDown={onKeyDown}
-            className="h-(--size-control-lg) min-w-0 flex-1 bg-transparent text-body text-ink outline-0 placeholder:text-muted"
           />
         </div>
 
-        <ul id={listId} role="listbox" className="max-h-96 overflow-y-auto p-1">
+        <ul id={listId} role="listbox" className="sc-palette-list">
           {entries.map((entry, i) => {
             const Icon = entry.icon;
             const heading = entries[i - 1]?.section !== entry.section;
             return (
               <li key={entry.id} role="presentation">
                 {heading ? (
-                  <p className="px-2 pt-2 pb-1 text-micro font-medium text-muted">
+                  <p className="sc-palette-section">
                     {copy.sections[SECTION_KEY[entry.section]]}
                   </p>
                 ) : null}
@@ -205,42 +197,30 @@ export function WorkspacePalette({
                   aria-selected={entry === active}
                   onPointerMove={() => setCursor(i)}
                   onClick={(e) => run(entry, destinationOf(e))}
-                  className={`flex cursor-default items-center gap-2 rounded-control px-2 py-1.5 text-meta text-ink ${
-                    entry === active ? "bg-primary/8" : ""
-                  }`}
+                  className="sc-option"
                 >
-                  <span className="flex size-(--size-icon-md) shrink-0 items-center justify-center text-muted">
-                    {Icon === undefined ? null : (
-                      <Icon className="size-(--size-icon-md)" strokeWidth={2} />
-                    )}
+                  <span className="sc-option-icon">
+                    {Icon === undefined ? null : <Icon strokeWidth={2} />}
                   </span>
-                  <span className="min-w-0 flex-1 truncate">{entry.label}</span>
+                  <span className="sc-option-label">{entry.label}</span>
                   {entry.section !== PaletteSection.Actions && entry.detail !== undefined ? (
-                    <span className="shrink-0 truncate text-micro text-muted">
-                      {entry.detail}
-                    </span>
+                    <span className="sc-option-detail">{entry.detail}</span>
                   ) : null}
                   {entry.section === PaletteSection.Actions &&
                   entry.shortcut !== undefined ? (
-                    <kbd className="shrink-0 rounded-control border border-line px-1.5 text-micro text-muted">
-                      {entry.shortcut}
-                    </kbd>
+                    <kbd className="sc-kbd">{entry.shortcut}</kbd>
                   ) : null}
                 </div>
               </li>
             );
           })}
           {entries.length === 0 && !loading ? (
-            <li className="px-3 py-6 text-center text-meta text-muted italic">
-              {copy.empty}
-            </li>
+            <li className="sc-palette-empty">{copy.empty}</li>
           ) : null}
-          {loading ? (
-            <li className="px-3 py-2 text-micro text-muted">{copy.searching}</li>
-          ) : null}
+          {loading ? <li className="sc-palette-empty">{copy.searching}</li> : null}
         </ul>
 
-        <p className="border-t border-line px-3 py-1.5 text-micro text-muted">{copy.hint}</p>
+        <p className="sc-palette-hint">{copy.hint}</p>
       </div>
     </div>
   );

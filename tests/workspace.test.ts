@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
 
 import {
   back,
@@ -8,6 +7,7 @@ import {
   collapsePanel,
   cycleFocus,
   DEFAULT_ZONES,
+  drillPeek,
   EMPTY,
   expandPanel,
   floatPanel,
@@ -16,6 +16,7 @@ import {
   formatRef,
   fromHash,
   goTo,
+  type Handle,
   handles,
   layout,
   maximize,
@@ -23,20 +24,28 @@ import {
   navigatePanel,
   openPanel,
   PAGE,
+  PEEK,
   peek,
+  peekBack,
   peekToPage,
   peekToSide,
   push,
   raisePanel,
+  replace,
   resizePanel,
   resizeZone,
+  resolve,
+  restore,
   select,
   selectionOf,
   sizeAt,
+  start,
+  STRIP,
   toHash,
   type Workspace,
   Zone,
 } from "@sincpro/web-composer/domain/index";
+import { test } from "vitest";
 
 const ref = (domain: string, kind: string, id?: string) =>
   id === undefined ? { domain, kind } : { domain, kind, id };
@@ -159,7 +168,11 @@ test("9 · a collapsed panel is still there and takes no content room", () => {
   const w = collapsePanel(openPanel(push(EMPTY, MOVES), FAC, Zone.Floating), "p1");
   const slot = layout(w).find((s) => s.id === "p1")!;
   assert.equal(slot.collapsed, true);
-  assert.ok(slot.box.height < 60, "a window shrinks to its title bar");
+  assert.deepEqual(
+    slot.box.height,
+    { fr: 0, px: STRIP },
+    "a window shrinks to its title bar",
+  );
 });
 
 test("10 · focus cycles between the page and the panels, and survives a close", () => {
@@ -223,13 +236,16 @@ test("15 · a handle returns exactly the size that is stored", () => {
   w = openPanel(openPanel(w, FAC, Zone.Right), PAG, Zone.Right);
   w = resizeZone(w, Zone.Right, 0.4);
 
+  const px = 1000;
+  const at = (h: Handle) => sizeAt(h, resolve(h.at, px), px);
+
   const right = handles(w).find((h) => h.kind === "zone" && h.zone === Zone.Right)!;
-  assert.ok(Math.abs(sizeAt(right, right.at) - 0.4) < 1e-9);
+  assert.ok(Math.abs(at(right) - 0.4) < 1e-9);
 
   const between = handles(w).find((h) => h.kind === "panel")!;
   const first = panelOf(w).placement;
   assert.ok(first.zone !== Zone.Floating);
-  assert.ok(Math.abs(sizeAt(between, between.at) - first.share) < 1e-9);
+  assert.ok(Math.abs(at(between) - first.share) < 1e-9);
 });
 
 test("16 · splitting two panels in a zone moves BOTH", () => {
@@ -255,8 +271,8 @@ test("17 · the page and every zone fit in one container", () => {
     w = openPanel(w, r, z);
   const page = layout(w).find((s) => s.id === PAGE)!;
   const f = DEFAULT_ZONES;
-  assert.ok(Math.abs(page.box.width - (1 - f.left - f.right)) < 1e-9);
-  assert.ok(Math.abs(page.box.height - (1 - f.bottom)) < 1e-9);
+  assert.ok(Math.abs(page.box.width.fr - (1 - f.left - f.right)) < 1e-9);
+  assert.ok(Math.abs(page.box.height.fr - (1 - f.bottom)) < 1e-9);
 });
 
 test("18 · the workspace fits in the URL and comes back the same", () => {
@@ -284,4 +300,92 @@ test("19 · a broken URL loads what is valid and drops the rest", () => {
   assert.equal(w.focus, PAGE);
   assert.equal(w.maximized, null);
   assert.equal(fromHash("#/w?p=%%%").page, null);
+});
+
+test("20 · the peek closes when the page becomes ANOTHER resource, not another face of it", () => {
+  const open = peek(push(push(EMPTY, MOVES), FAC), PAG);
+
+  assert.equal(push(open, APUNTES).peek, null, "opening another row");
+  assert.equal(goTo(open, 0).peek, null, "a crumb");
+  assert.equal(back(open).peek, null, "back");
+  assert.equal(replace(open, APUNTES).peek, null, "replacing it");
+  assert.equal(start(open, APUNTES).peek, null, "starting over from a menu");
+
+  const filtered = replace(open, { ...FAC, params: { tab: "lineas" } });
+  assert.equal(fmt(filtered.peek!), fmt(PAG), "a filter or a tab keeps the drawer");
+});
+
+test("21 · the peek keeps its own way back; opened from outside it starts fresh", () => {
+  let w = peek(push(EMPTY, MOVES), FAC);
+  w = drillPeek(drillPeek(w, PAG), APUNTES);
+  assert.deepEqual(w.peekTrail.map(fmt), [fmt(FAC), fmt(PAG)]);
+  assert.equal(fmt(peekBack(w).peek!), fmt(PAG));
+  assert.equal(peek(w, FAC).peekTrail.length, 0, "a new row is a new drawer");
+  assert.equal(closePeek(w).peekTrail.length, 0);
+});
+
+test("22 · the peek takes the focus and gives it back; without a page it IS the page", () => {
+  const w = peek(push(EMPTY, MOVES), FAC);
+  assert.equal(w.focus, PEEK);
+  assert.equal(fmt(focusedRef(w)!), fmt(FAC), "⌘K acts on what I am reading");
+  assert.equal(closePeek(w).focus, PAGE);
+
+  const alone = peek(EMPTY, FAC);
+  assert.equal(alone.peek, null, "a drawer over nothing would be invisible");
+  assert.equal(fmt(alone.page!), fmt(FAC));
+});
+
+test("23 · a minimized panel is a 36 px strip and the open ones share the rest", () => {
+  let w = push(EMPTY, MOVES);
+  w = openPanel(
+    openPanel(openPanel(w, FAC, Zone.Right), PAG, Zone.Right),
+    APUNTES,
+    Zone.Right,
+  );
+  w = collapsePanel(w, "p2");
+  const h = 900;
+  const height = (id: string) => resolve(layout(w).find((s) => s.id === id)!.box.height, h);
+
+  assert.equal(height("p2"), STRIP);
+  assert.ok(Math.abs(height("p1") + height("p2") + height("p3") - h) < 1e-6, "no gap");
+  assert.ok(
+    !handles(w).some((x) => x.kind === "panel"),
+    "no handle beside a minimized panel",
+  );
+});
+
+test("24 · a zone with every panel minimized shrinks to a rail and the page takes the room", () => {
+  let w = openPanel(push(EMPTY, MOVES), FAC, Zone.Left);
+  w = collapsePanel(w, "p1");
+  const width = 1200;
+  const slots = layout(w);
+  const rail = slots.find((s) => s.id === "p1")!;
+  const page = slots.find((s) => s.id === PAGE)!;
+
+  assert.equal(rail.rail, true);
+  assert.equal(resolve(rail.box.width, width), STRIP);
+  assert.equal(resolve(page.box.width, width), width - STRIP);
+  assert.ok(!handles(w).some((x) => x.kind === "zone" && x.zone === Zone.Left), "no handle");
+
+  let b = openPanel(push(EMPTY, MOVES), FAC, Zone.Bottom);
+  b = collapsePanel(b, "p1");
+  const row = layout(b).find((s) => s.id === "p1")!;
+  assert.equal(row.rail, false, "at the bottom it is a row of title bars");
+  assert.equal(resolve(row.box.height, 800), STRIP);
+});
+
+test("25 · the browser's Back restores the place and keeps the session's memory", () => {
+  const list = push(EMPTY, MOVES);
+  const record = select(peek(push(list, FAC), PAG), PAGE, [APUNTES]);
+
+  const withMemory = restore(record, fromHash(toHash(list)), { trail: [], peekTrail: [] });
+  assert.equal(fmt(withMemory.page!), fmt(MOVES));
+  assert.deepEqual(withMemory.trail, []);
+
+  const fromLink = restore(record, fromHash(toHash(list)), null);
+  assert.deepEqual(fromLink.trail, [], "a page already in the trail goes back to it");
+
+  const same = restore(record, fromHash(toHash(record)), null);
+  assert.deepEqual(same.trail.map(fmt), [fmt(MOVES)], "the trail is not in the URL");
+  assert.ok(same.selected !== null, "the selection stays while its page does");
 });

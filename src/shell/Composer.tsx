@@ -2,7 +2,8 @@ import {
   type Action,
   Destination,
   focusedRef,
-  formatRef,
+  PAGE,
+  PEEK,
   type Registry,
   type ResourceRef,
   Surface,
@@ -11,13 +12,19 @@ import {
 import { composerCopy } from "@sincpro/web-composer/shell/copy";
 import { WorkspacePalette } from "@sincpro/web-composer/shell/Palette";
 import { PanelHost } from "@sincpro/web-composer/shell/PanelHost";
+import { ChromeButton, ConfirmDialog, PeekDrawer } from "@sincpro/web-composer/shell/Peek";
+import {
+  type ComposerSkin,
+  resolveSkin,
+  SkinProvider,
+} from "@sincpro/web-composer/shell/skin";
+import { ComposerStyles } from "@sincpro/web-composer/shell/styles";
 import { ViewHost } from "@sincpro/web-composer/shell/ViewHost";
 import { createApiFactory } from "@sincpro/web-composer/state/api";
 import { useDropMonitor } from "@sincpro/web-composer/state/drag";
 import type { WorkspaceStore } from "@sincpro/web-composer/state/store";
 import { useKeyboard } from "@sincpro/web-composer/state/useKeyboard";
 import { useWorkspaceState } from "@sincpro/web-composer/state/useWorkspace";
-import { Button, Peek } from "@sincpro/web-ui";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 
 /**
@@ -25,6 +32,35 @@ import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react
  * registry. Adding a domain does not touch any file in this package: register its `ViewSpec`
  * and it appears.
  */
+
+/** A discard waiting for the person's answer. */
+type Asking = { names: readonly string[]; answer: (ok: boolean) => void };
+
+/**
+ * The question before throwing away what someone typed, drawn with the design system. The store
+ * calls it; a `confirmDiscard` given to the store replaces it.
+ */
+function useDiscardDialog(workspace: WorkspaceStore, titleOf: (ref: ResourceRef) => string) {
+  const [asking, setAsking] = useState<Asking | null>(null);
+
+  useEffect(() => {
+    workspace.setConfirmDiscard(
+      (lost) =>
+        new Promise<boolean>((resolve) =>
+          setAsking({
+            names: lost.map(titleOf),
+            answer: (ok) => {
+              setAsking(null);
+              resolve(ok);
+            },
+          }),
+        ),
+    );
+    return () => workspace.setConfirmDiscard(null);
+  }, [workspace, titleOf]);
+
+  return asking;
+}
 
 export type ComposerProps = {
   workspace: WorkspaceStore;
@@ -40,6 +76,9 @@ export type ComposerProps = {
    *  the state and only the shortcut opens it. */
   palette?: boolean;
   onPaletteChange?: (open: boolean) => void;
+  /** Your design over the composer: icons, the peek drawer, the confirm dialog, the notice, or
+   *  `styles: false` to drop the default sheet. What is not passed keeps the default. */
+  skin?: ComposerSkin;
 };
 
 export function Composer({
@@ -50,7 +89,11 @@ export function Composer({
   defaultOpen = Destination.Page,
   palette: paletteProp,
   onPaletteChange,
+  skin: skinProp,
 }: ComposerProps) {
+  const skin = useMemo(() => resolveSkin(skinProp), [skinProp]);
+  const Drawer = skin.Peek ?? PeekDrawer;
+  const Confirm = skin.Confirm ?? ConfirmDialog;
   const state = useWorkspaceState(workspace);
   const copy = composerCopy();
   const [paletteState, setPaletteState] = useState(false);
@@ -85,18 +128,21 @@ export function Composer({
     ),
   );
 
-  /** Where a chosen search result opens. Without a page yet, the first one becomes it. */
+  const asking = useDiscardDialog(workspace, api.titleOf);
+
+  /** Where a chosen search result opens. Without a page yet, the first one becomes it —
+   *  whatever was asked: a peek or a window over nothing would be invisible. */
   function open(ref: ResourceRef, destination: Destination) {
-    const here = workspace.get();
-    if (destination === Destination.Peek) workspace.peek(ref);
+    if (workspace.get().page === null) workspace.push(ref);
+    else if (destination === Destination.Peek) workspace.peek(ref);
     else if (destination === Destination.Window) workspace.openPanel(ref, Zone.Floating);
-    else if (destination === Destination.Side && here.page !== null)
+    else if (destination === Destination.Side)
       workspace.openPanel(ref, api.zoneFor(registry.resolve(ref)));
     else workspace.push(ref);
   }
 
-  /** An action runs with the API of the surface its resource is on, so «audit» can open beside
-   *  it or navigate it. */
+  /** An action runs with the API of the surface its resource is on — the page, the peek I am
+   *  reading or a panel — so «audit» can open beside it or navigate it. */
   function run(action: Action) {
     const w = workspace.get();
     const ref = focusedRef(w);
@@ -104,59 +150,97 @@ export function Composer({
     action.run(
       api.for(
         ref,
-        w.focus === "page"
+        w.focus === PAGE
           ? { surface: Surface.Page }
-          : { surface: Surface.Panel, panelId: w.focus },
+          : w.focus === PEEK
+            ? { surface: Surface.Peek }
+            : { surface: Surface.Panel, panelId: w.focus },
       ),
     );
   }
 
   const peeked = state.peek;
   const peekSpec = peeked === null ? null : registry.resolve(peeked);
+  const cameFrom = state.peekTrail.at(-1);
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col bg-ground">
-      {state.page === null ? (
-        <div className="flex min-h-0 flex-1 items-center justify-center p-8">{empty}</div>
-      ) : (
-        <PanelHost
-          workspace={state}
-          registry={registry}
-          store={workspace}
-          api={api}
-          overlay={
-            peeked === null ? null : (
-              <Peek
-                open
-                title={peekSpec?.title(peeked) ?? formatRef(peeked)}
-                onClose={workspace.closePeek}
-                onPromote={() => workspace.peekToSide(peekSpec?.preferredZone ?? Zone.Right)}
-                actions={
-                  <Button size="sm" role="ghost" onClick={workspace.peekToPage}>
-                    {copy.peek.openAsPage}
-                  </Button>
-                }
-              >
-                <ViewHost
-                  resource={peeked}
-                  registry={registry}
-                  api={api.for(peeked, { surface: Surface.Peek })}
-                />
-              </Peek>
-            )
-          }
-        />
-      )}
+    <SkinProvider value={skin}>
+      <div className="sc-root">
+        {skin.styles ? <ComposerStyles /> : null}
+        {state.page === null ? (
+          <div className="sc-empty">{empty}</div>
+        ) : (
+          <PanelHost
+            workspace={state}
+            registry={registry}
+            store={workspace}
+            api={api}
+            overlay={
+              peeked === null ? null : (
+                /* `contents`: no box of its own, so the drawer still lays out against the page;
+                 it only hears the pointer, to hand the shortcuts to what is being read. */
+                <div
+                  style={{ display: "contents" }}
+                  onPointerDownCapture={() => workspace.focusPanel(PEEK)}
+                >
+                  <Drawer
+                    title={api.titleOf(peeked)}
+                    onClose={workspace.closePeek}
+                    actions={
+                      <>
+                        <ChromeButton
+                          onClick={() =>
+                            workspace.peekToSide(peekSpec?.preferredZone ?? Zone.Right)
+                          }
+                        >
+                          {copy.peek.openAsPanel}
+                        </ChromeButton>
+                        {cameFrom === undefined ? null : (
+                          <ChromeButton
+                            role="ghost"
+                            icon={skin.icons.back}
+                            onClick={workspace.peekBack}
+                          >
+                            {copy.peek.back(api.titleOf(cameFrom))}
+                          </ChromeButton>
+                        )}
+                        <ChromeButton role="ghost" onClick={workspace.peekToPage}>
+                          {copy.peek.openAsPage}
+                        </ChromeButton>
+                      </>
+                    }
+                  >
+                    <ViewHost
+                      resource={peeked}
+                      registry={registry}
+                      api={api.for(peeked, { surface: Surface.Peek })}
+                    />
+                  </Drawer>
+                </div>
+              )
+            }
+          />
+        )}
 
-      {palette ? (
-        <WorkspacePalette
-          registry={registry}
-          focused={focusedRef(state)}
-          onOpen={open}
-          onAction={run}
-          onClose={() => setPalette(false)}
+        <Confirm
+          open={asking !== null}
+          title={copy.discard.title}
+          detail={asking === null ? "" : copy.discard.detail(asking.names)}
+          keep={copy.discard.keep}
+          discard={copy.discard.discard}
+          onAnswer={(ok) => asking?.answer(ok)}
         />
-      ) : null}
-    </div>
+
+        {palette ? (
+          <WorkspacePalette
+            registry={registry}
+            focused={focusedRef(state)}
+            onOpen={open}
+            onAction={run}
+            onClose={() => setPalette(false)}
+          />
+        ) : null}
+      </div>
+    </SkinProvider>
   );
 }

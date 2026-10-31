@@ -7,7 +7,7 @@ make init
 make test
 ```
 
-Node 26 (`nvm use`). Tests run straight over the TypeScript sources with `node --test`.
+Node 26 (`nvm use`). `make test` runs vitest: the model's rules in Node and every story — its `play` and its a11y check — in Chrome. The same tests run from Storybook's sidebar.
 
 ## Before you open a pull request
 

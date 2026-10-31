@@ -12,12 +12,11 @@ help:
 	@echo "  lint            eslint"
 	@echo "  typecheck       tsc --noEmit"
 	@echo "  doctor          the traps tsc does not catch"
-	@echo "  test            node --test over the TypeScript sources"
+	@echo "  test            vitest: the model's rules in Node + every story in Chrome"
 	@echo "  verify-format   format + lint + doctor, then fail if the tree is dirty (CI)"
 	@echo "  build           compile into dist/"
 	@echo "  dev             Storybook on :6007"
 	@echo "  storybook       static Storybook into storybook-static/"
-	@echo "  smoke           open every story in headless Chrome; fail on errors or blanks"
 	@echo "  update-version  VERSION=x.y.z — release pipeline only, never by hand"
 	@echo "  publish         build + publish to NPM (release pipeline)"
 	@echo "  clean           remove dist/, storybook-static/ and node_modules/"
@@ -68,12 +67,17 @@ doctor:
 	if $(SCAN) 'from "$(PACKAGE)/shell/' src/state | $(NOT_COMMENT); then \
 		echo >&2 "✘ the store importing the shell — state/ binds the model, it does not draw"; found=1; \
 	fi; \
+	if $(SCAN) 'from "(@sincpro/web-ui|lucide-react)' src | $(NOT_COMMENT); then \
+		echo >&2 "✘ a design system or icon library in src/ — the composer stands alone; they belong to stories/"; found=1; \
+	fi; \
 	if [ "$$found" = "1" ]; then exit 1; fi; \
 	echo "✓ no traps found"
 
+# One runner, two projects (vitest.config.ts): `model` in Node, `storybook` in a real Chrome —
+# the stories ARE the tests, and Storybook's «Run tests» runs these same ones.
 test:
 	@echo "🧪 Running tests..."
-	@node --import tsx --test "tests/**/*.test.ts" "tests/**/*.test.tsx"
+	@VITE_CONFIG_NATIVE_IGNORE_WARNING=true npx vitest run
 
 verify-format: format lint doctor
 	@if ! git diff --quiet; then \
@@ -95,10 +99,6 @@ dev:
 
 storybook:
 	@npx storybook build -o storybook-static
-
-# Every story opened in a headless Chrome: fails on a console error or a blank story.
-smoke:
-	@node --import tsx .storybook/smoke.ts
 
 # `--package-lock=false`: npm (unlike yarn, which manages this repo's installs) doesn't read
 # yarn.lock, so without it `npm version` rebuilds a dependency tree against the real registry
@@ -135,4 +135,4 @@ clean:
 	@echo "✓ Cleaned"
 
 .PHONY: help prepare-environment install init typecheck format lint doctor test verify-format build \
-	dev storybook smoke update-version publish deploy clean
+	dev storybook update-version publish deploy clean

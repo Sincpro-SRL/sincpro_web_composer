@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fireEvent, userEvent, within } from "storybook/test";
 
-import { Demo, soloLaLista } from "./contabilidad/demo";
+import { auditoria, Demo, soloLaLista } from "./contabilidad/demo";
 
 const meta: Meta = {
   title: "Casos de uso/05 · Ventana libre",
@@ -46,7 +46,7 @@ export const MoverRedimensionarYAgrandar: Story = {
     await expect(moved.left).toBeGreaterThan(before.left + 100);
     await expect(moved.top).toBeGreaterThan(before.top + 60);
 
-    const grip = slot.querySelector<HTMLElement>(".cursor-se-resize")!;
+    const grip = slot.querySelector<HTMLElement>('[data-grip="se"]')!;
     fireEvent.pointerDown(grip, { pointerId: 2, clientX: 900, clientY: 500, button: 0 });
     fireEvent.pointerMove(grip, { pointerId: 2, clientX: 1000, clientY: 560 });
     fireEvent.pointerUp(grip, { pointerId: 2, clientX: 1000, clientY: 560 });
@@ -74,5 +74,24 @@ export const VariasVentanas: Story = {
 
     await userEvent.click(within(a).getAllByText("FAC-2026-0012")[0]!);
     await expect(Number(a.style.zIndex)).toBeGreaterThanOrEqual(Number(b.style.zIndex));
+  },
+};
+
+/** Minimizar el único panel de un costado lo deja en un riel de 36 px: la página recupera el lugar
+ *  y no queda un hueco. Restaurarlo le devuelve su ancho. */
+export const MinimizarDejaUnRiel: Story = {
+  render: () => <Demo initial={auditoria()} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const frame = await canvas.findByRole("region", { name: "Asiento seleccionado" });
+    const slot = frame.parentElement!;
+    const before = slot.getBoundingClientRect().width;
+
+    await userEvent.click(within(frame).getByRole("button", { name: "Minimizar" }));
+    await expect(Math.round(slot.getBoundingClientRect().width)).toBe(36);
+    await expect(canvas.queryByRole("separator", { name: /zona derecha/ })).toBeNull();
+
+    await userEvent.click(within(frame).getByRole("button", { name: "Restaurar" }));
+    await expect(Math.round(slot.getBoundingClientRect().width)).toBe(Math.round(before));
   },
 };

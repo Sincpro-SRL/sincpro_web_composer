@@ -1,7 +1,7 @@
 {
   "name": "@sincpro/web-composer",
   "version": "0.1.0",
-  "description": "The Sincpro multitasking workspace for React: tabs, panels, peek, global panels and ⌘K over references.",
+  "description": "The Sincpro workspace for React: one page with its breadcrumb, a peek, side panels and windows, and ⌘K — all over references, never data.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -27,16 +27,16 @@
     "printWidth": 94
   },
   "peerDependencies": {
-    "@sincpro/web-ui": "*",
     "react": ">=19",
     "react-dom": ">=19"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@sincpro/web-ui": "^0.1.0",
+    "@sincpro/web-ui": "^0.2.0",
     "@storybook/addon-a11y": "10.6.5",
     "@storybook/addon-docs": "10.6.5",
     "@storybook/addon-mcp": "10.6.5",
+    "@storybook/addon-vitest": "10.6.5",
     "@storybook/react-vite": "10.6.5",
     "@tailwindcss/vite": "4.3.3",
     "@tanstack/react-table": "^9.3.1",
@@ -45,26 +45,28 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "6.1.2",
+    "@vitest/browser-playwright": "5.0.5",
     "eslint": "^10.14.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-simple-import-sort": "^14.0.0",
+    "lucide-react": "^1.65.0",
+    "playwright": "1.64.1",
     "prettier": "^3.9.10",
-    "puppeteer-core": "^25.16.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "storybook": "10.6.5",
     "tailwindcss": "4.3.3",
     "tsc-alias": "^1.9.9",
-    "tsx": "^4.23.15",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.72.1",
-    "vite": "8.3.5"
+    "vite": "8.3.5",
+    "vitest": "5.0.5"
   },
   "keywords": [
     "workspace",
     "react",
-    "tabs",
+    "breadcrumb",
     "command-palette",
     "sincpro"
   ],
@@ -78,7 +80,6 @@
     "node": ">=26"
   },
   "dependencies": {
-    "@atlaskit/pragmatic-drag-and-drop": "^4.0.0",
-    "lucide-react": "^1.65.0"
+    "@atlaskit/pragmatic-drag-and-drop": "^4.0.0"
   }
 }

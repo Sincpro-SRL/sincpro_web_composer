@@ -1,6 +1,7 @@
 /**
- * The shell — React and the design system. The model comes in through the other door,
- * `@sincpro/web-composer/domain`, which depends on nothing.
+ * The shell — React and nothing else: the composer draws its windows with its own skin
+ * (`sc-*` classes, `--sc-*` variables) and depends on no design system. The model comes in
+ * through the other door, `@sincpro/web-composer/domain`, which depends on nothing.
  *
  * Only the model TYPES that appear in these signatures are re-exported, so declaring a domain
  * does not force a two-place import.
@@ -25,6 +26,7 @@ export {
   focusedRef,
   PAGE,
   PaletteSection,
+  PEEK,
   selectionOf,
   Surface,
   Zone,
@@ -37,6 +39,7 @@ export {
   installComposerCopy,
   SPANISH_COMPOSER_COPY,
 } from "@sincpro/web-composer/shell/copy";
+export { type IconProps } from "@sincpro/web-composer/shell/icons";
 export {
   WorkspacePalette,
   type WorkspacePaletteProps,
@@ -48,6 +51,15 @@ export {
 } from "@sincpro/web-composer/shell/PanelFrame";
 export { PanelHost, type PanelHostProps } from "@sincpro/web-composer/shell/PanelHost";
 export { RecordLink, type RecordLinkProps } from "@sincpro/web-composer/shell/RecordLink";
+export {
+  type ComposerSkin,
+  type ConfirmProps,
+  DEFAULT_ICONS,
+  type NoticeProps,
+  type PeekProps,
+  type SkinIcons,
+} from "@sincpro/web-composer/shell/skin";
+export { ComposerStyles } from "@sincpro/web-composer/shell/styles";
 export { ViewHost, type ViewHostProps } from "@sincpro/web-composer/shell/ViewHost";
 export {
   type ApiFactory,
@@ -55,6 +67,7 @@ export {
   type Target,
 } from "@sincpro/web-composer/state/api";
 export {
+  type ConfirmDiscard,
   createWorkspaceStore,
   type StoreOptions,
   type WorkspaceStore,

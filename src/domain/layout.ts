@@ -1,11 +1,4 @@
-import {
-  Axis,
-  BoxUnit,
-  type Dock,
-  HandleKind,
-  Split,
-  Zone,
-} from "@sincpro/web-composer/domain/enums";
+import { Axis, type Dock, HandleKind, Zone } from "@sincpro/web-composer/domain/enums";
 import type { ResourceRef } from "@sincpro/web-composer/domain/resource";
 import {
   MAX_ZONE,
@@ -29,13 +22,14 @@ import {
  *     └──────────┴───────────────────┴──────────┘
  */
 
-export type Box = {
-  unit: BoxUnit;
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-};
+/**
+ * A fraction of the container plus pixels — `calc(fr·100% + px)`. A minimized panel is a fixed
+ * strip while its neighbours are still a share, and neither unit alone can say «the zone minus
+ * two headers».
+ */
+export type Length = { fr: number; px: number };
+
+export type Box = { left: Length; top: Length; width: Length; height: Length };
 
 export type Slot = {
   /** `PAGE` for the page; the panel id for everything else. */
@@ -50,46 +44,108 @@ export type Slot = {
    *  unmount them. */
   visible: boolean;
   collapsed: boolean;
+  /** Minimized into a strip that is NARROW, not short: a left or right zone with every panel
+   *  minimized, or one minimized among open ones at the bottom. Its title reads vertically. */
+  rail: boolean;
 };
 
-const fraction = (left: number, top: number, width: number, height: number): Box => ({
-  unit: BoxUnit.Fraction,
-  left,
-  top,
-  width,
-  height,
-});
+const len = (fr: number, px = 0): Length => ({ fr, px });
+const plus = (a: Length, b: Length): Length => len(a.fr + b.fr, a.px + b.px);
+const times = (a: Length, k: number): Length => len(a.fr * k, a.px * k);
 
-const FULL = fraction(0, 0, 1, 1);
+/** A length measured on a container `size` pixels long. */
+export const resolve = (l: Length, size: number): number => l.fr * size + l.px;
 
-/** Title bar of a window when it is minimized. Matches the header. */
-const WINDOW_TITLEBAR = 36;
+const ZERO = len(0);
+const FULL: Box = { left: ZERO, top: ZERO, width: len(1), height: len(1) };
 
-const extent = (w: Workspace, zone: Dock) =>
-  panelsIn(w, zone).length === 0 ? 0 : w.zones[zone];
+/** What a minimized panel keeps: its title bar. It matches the frame's header. */
+export const STRIP = 36;
 
-type Space = { left: number; top: number; width: number; height: number };
+const isCollapsed = (p: Panel) => p.placement.collapsed === true;
+const shareOf = (p: Panel) => (p.placement.zone === Zone.Floating ? 0 : p.placement.share);
+const allCollapsed = (panels: readonly Panel[]) =>
+  panels.length > 0 && panels.every(isCollapsed);
 
-function split(panels: readonly Panel[], axis: Split, box: Space): Slot[] {
-  let cursor = 0;
-  return panels.map((panel) => {
-    const share = panel.placement.zone === Zone.Floating ? 0 : panel.placement.share;
-    const slotBox =
-      axis === Split.Vertical
-        ? fraction(box.left, box.top + box.height * cursor, box.width, box.height * share)
-        : fraction(box.left + box.width * cursor, box.top, box.width * share, box.height);
-    cursor += share;
-    return {
+/** A zone with every panel minimized shrinks to one strip: the page takes the room back. */
+function extent(w: Workspace, zone: Dock): Length {
+  const panels = panelsIn(w, zone);
+  if (panels.length === 0) return ZERO;
+  return allCollapsed(panels) ? len(0, STRIP) : len(w.zones[zone]);
+}
+
+/** The lengths the page and each zone take of the container. */
+function frame(w: Workspace) {
+  const left = extent(w, Zone.Left);
+  const right = extent(w, Zone.Right);
+  const bottom = extent(w, Zone.Bottom);
+  const middle = len(Math.max(0, 1 - left.fr - right.fr), -(left.px + right.px));
+  return { left, right, bottom, middle, top: len(1 - bottom.fr, -bottom.px) };
+}
+
+/** A zone stacks top to bottom; the bottom one lays its panels side by side. */
+const stacks = (zone: Dock) => zone !== Zone.Bottom;
+
+type Piece = { panel: Panel; start: Length; size: Length };
+
+/**
+ * Along the zone, a minimized panel is a fixed strip and the open ones share the rest, each in
+ * proportion to its share among the OPEN ones — so restoring one gives back the size it had.
+ * `unit` is the length a share of 1 takes, what a handle between two of them measures against.
+ */
+function pieces(panels: readonly Panel[], along: Length): { list: Piece[]; unit: Length } {
+  const strips = panels.filter(isCollapsed).length;
+  const all = strips === panels.length;
+  const open = panels.reduce((sum, p) => (isCollapsed(p) ? sum : sum + shareOf(p)), 0);
+  const unit = open <= 0 ? ZERO : times(plus(along, len(0, -strips * STRIP)), 1 / open);
+
+  let cursor = ZERO;
+  const list = panels.map((panel) => {
+    const size = all
+      ? times(along, 1 / panels.length)
+      : isCollapsed(panel)
+        ? len(0, STRIP)
+        : times(unit, shareOf(panel));
+    const piece = { panel, start: cursor, size };
+    cursor = plus(cursor, size);
+    return piece;
+  });
+  return { list, unit };
+}
+
+function zoneSpace(f: ReturnType<typeof frame>, zone: Dock): Box {
+  if (zone === Zone.Left) return { left: ZERO, top: ZERO, width: f.left, height: len(1) };
+  if (zone === Zone.Right)
+    return { left: plus(f.left, f.middle), top: ZERO, width: f.right, height: len(1) };
+  return { left: f.left, top: f.top, width: f.middle, height: f.bottom };
+}
+
+function docked(w: Workspace, f: ReturnType<typeof frame>, zone: Dock): Slot[] {
+  const panels = panelsIn(w, zone);
+  const space = zoneSpace(f, zone);
+  const vertical = stacks(zone);
+  const all = allCollapsed(panels);
+
+  return pieces(panels, vertical ? space.height : space.width).list.map(
+    ({ panel, start, size }) => ({
       id: panel.id,
       view: panel.view,
       panel,
-      box: slotBox,
+      box: vertical
+        ? { left: space.left, top: plus(space.top, start), width: space.width, height: size }
+        : {
+            left: plus(space.left, start),
+            top: space.top,
+            width: size,
+            height: space.height,
+          },
       floating: false,
       z: 0,
       visible: true,
-      collapsed: panel.placement.collapsed === true,
-    };
-  });
+      collapsed: isCollapsed(panel),
+      rail: isCollapsed(panel) && (vertical ? all : !all),
+    }),
+  );
 }
 
 function windows(panels: readonly Panel[]): Slot[] {
@@ -102,29 +158,19 @@ function windows(panels: readonly Panel[]): Slot[] {
             view: panel.view,
             panel,
             box: {
-              unit: BoxUnit.Pixel,
-              left: panel.placement.x,
-              top: panel.placement.y,
-              width: panel.placement.w,
-              height:
-                panel.placement.collapsed === true ? WINDOW_TITLEBAR : panel.placement.h,
+              left: len(0, panel.placement.x),
+              top: len(0, panel.placement.y),
+              width: len(0, panel.placement.w),
+              height: len(0, isCollapsed(panel) ? STRIP : panel.placement.h),
             },
             floating: true,
             z: panel.placement.z,
             visible: true,
-            collapsed: panel.placement.collapsed === true,
+            collapsed: isCollapsed(panel),
+            rail: false,
           },
         ],
   );
-}
-
-/** The fractions of the container the page and each zone take. */
-function frame(w: Workspace) {
-  const left = extent(w, Zone.Left);
-  const right = extent(w, Zone.Right);
-  const bottom = extent(w, Zone.Bottom);
-  const middle = Math.max(0, 1 - left - right);
-  return { left, right, bottom, middle, top: Math.max(0, 1 - bottom) };
 }
 
 export function layout(w: Workspace): readonly Slot[] {
@@ -137,38 +183,24 @@ export function layout(w: Workspace): readonly Slot[] {
             id: PAGE,
             view: w.page,
             panel: null,
-            box: fraction(f.left, 0, f.middle, f.top),
+            box: { left: f.left, top: ZERO, width: f.middle, height: f.top },
             floating: false,
             z: 0,
             visible: true,
             collapsed: false,
+            rail: false,
           },
         ]),
-    ...split(panelsIn(w, Zone.Left), Split.Vertical, {
-      left: 0,
-      top: 0,
-      width: f.left,
-      height: 1,
-    }),
-    ...split(panelsIn(w, Zone.Right), Split.Vertical, {
-      left: f.left + f.middle,
-      top: 0,
-      width: f.right,
-      height: 1,
-    }),
-    ...split(panelsIn(w, Zone.Bottom), Split.Horizontal, {
-      left: f.left,
-      top: f.top,
-      width: f.middle,
-      height: f.bottom,
-    }),
+    ...docked(w, f, Zone.Left),
+    ...docked(w, f, Zone.Right),
+    ...docked(w, f, Zone.Bottom),
     ...windows(w.panels),
   ];
 
   if (w.maximized === null || !slots.some((s) => s.id === w.maximized)) return slots;
   return slots.map((slot) =>
     slot.id === w.maximized
-      ? { ...slot, box: FULL, floating: false, visible: true, collapsed: false }
+      ? { ...slot, box: FULL, floating: false, visible: true, collapsed: false, rail: false }
       : { ...slot, visible: false },
   );
 }
@@ -185,32 +217,24 @@ export function stableOrder(slots: readonly Slot[]): readonly Slot[] {
  *   `zone`   the edge between a zone and the page. Mutates `Workspace.zones`.
  *   `panel`  the edge between two panels in the SAME zone. What one gains, the neighbour loses.
  *
+ * A zone shrunk to its strip has no handle, and neither does the edge of a minimized panel:
+ * there is nothing to resize until it is restored.
+ *
  * Nested split containers (`react-resizable-panels`) are out: they unmount a panel when it
  * changes zone.
  */
-export type Handle =
-  | {
-      kind: typeof HandleKind.Zone;
-      zone: Dock;
-      axis: Axis;
-      at: number;
-      origin: number;
-      span: number;
-      invert: boolean;
-    }
-  | {
-      kind: typeof HandleKind.Panel;
-      panelId: string;
-      axis: Axis;
-      at: number;
-      origin: number;
-      span: number;
-      invert: boolean;
-    };
+type Measure = { axis: Axis; at: Length; origin: Length; span: Length; invert: boolean };
 
-export function sizeAt(handle: Handle, p: number): number {
-  const raw = handle.invert ? handle.origin - p : p - handle.origin;
-  return raw / handle.span;
+export type Handle =
+  | ({ kind: typeof HandleKind.Zone; zone: Dock } & Measure)
+  | ({ kind: typeof HandleKind.Panel; panelId: string } & Measure);
+
+/** The stored size a pointer `p` pixels into a container `size` pixels long asks for. */
+export function sizeAt(handle: Handle, p: number, size: number): number {
+  const origin = resolve(handle.origin, size);
+  const span = resolve(handle.span, size);
+  if (span <= 0) return 0;
+  return (handle.invert ? origin - p : p - origin) / span;
 }
 
 export function handles(w: Workspace): readonly Handle[] {
@@ -218,63 +242,63 @@ export function handles(w: Workspace): readonly Handle[] {
 
   const f = frame(w);
   const result: Handle[] = [];
-  const left = panelsIn(w, Zone.Left);
-  const right = panelsIn(w, Zone.Right);
-  const bottom = panelsIn(w, Zone.Bottom);
+  const resizable = (zone: Dock) => {
+    const panels = panelsIn(w, zone);
+    return panels.length > 0 && !allCollapsed(panels);
+  };
 
-  if (left.length > 0)
+  if (resizable(Zone.Left))
     result.push({
       kind: HandleKind.Zone,
       zone: Zone.Left,
       axis: Axis.X,
       at: f.left,
-      origin: 0,
-      span: 1,
+      origin: ZERO,
+      span: len(1),
       invert: false,
     });
-  if (right.length > 0)
+  if (resizable(Zone.Right))
     result.push({
       kind: HandleKind.Zone,
       zone: Zone.Right,
       axis: Axis.X,
-      at: f.left + f.middle,
-      origin: 1,
-      span: 1,
+      at: plus(f.left, f.middle),
+      origin: len(1),
+      span: len(1),
       invert: true,
     });
-  if (bottom.length > 0)
+  if (resizable(Zone.Bottom))
     result.push({
       kind: HandleKind.Zone,
       zone: Zone.Bottom,
       axis: Axis.Y,
       at: f.top,
-      origin: 1,
-      span: 1,
+      origin: len(1),
+      span: len(1),
       invert: true,
     });
 
-  const between = (panels: readonly Panel[], axis: Axis, origin: number, span: number) => {
-    let cursor = 0;
-    panels.forEach((panel, i) => {
-      const share = panel.placement.zone === Zone.Floating ? 0 : panel.placement.share;
-      cursor += share;
-      if (i < panels.length - 1) {
-        result.push({
-          kind: HandleKind.Panel,
-          panelId: panel.id,
-          axis,
-          at: origin + span * cursor,
-          origin: origin + span * (cursor - share),
-          span,
-          invert: false,
-        });
-      }
-    });
-  };
+  for (const zone of [Zone.Left, Zone.Right, Zone.Bottom] as const) {
+    if (!resizable(zone)) continue;
+    const space = zoneSpace(f, zone);
+    const vertical = stacks(zone);
+    const base = vertical ? space.top : space.left;
+    const { list, unit } = pieces(panelsIn(w, zone), vertical ? space.height : space.width);
 
-  between(left, Axis.Y, 0, 1);
-  between(right, Axis.Y, 0, 1);
-  between(bottom, Axis.X, f.left, f.middle);
+    list.forEach((piece, i) => {
+      const next = list[i + 1];
+      if (next === undefined || isCollapsed(piece.panel) || isCollapsed(next.panel)) return;
+      result.push({
+        kind: HandleKind.Panel,
+        panelId: piece.panel.id,
+        axis: vertical ? Axis.Y : Axis.X,
+        at: plus(base, next.start),
+        origin: plus(base, piece.start),
+        span: unit,
+        invert: false,
+      });
+    });
+  }
 
   return result;
 }
