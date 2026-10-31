@@ -160,7 +160,7 @@ const CSS = `
 }
 .sc-modal-scrim[data-blur] { backdrop-filter: blur(var(--_modal-blur)); }
 .sc-modal {
-  display: flex; flex-direction: column; width: min(28rem, 100%); max-width: 100%; max-height: 100%;
+  position: relative; display: flex; flex-direction: column; width: min(28rem, 100%); max-width: 100%; max-height: 100%;
   overflow: hidden; background: var(--_surface); border: 1px solid var(--_line-strong);
   border-radius: var(--_radius); box-shadow: var(--_shadow); outline: 0;
 }

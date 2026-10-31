@@ -68,6 +68,17 @@ export {
 export { ComposerStyles } from "@sincpro/web-composer/shell/styles";
 export { ViewHost, type ViewHostProps } from "@sincpro/web-composer/shell/ViewHost";
 export {
+  agentAvailable,
+  type AgentTool,
+  type AgentToolAnnotations,
+  registerAgentTool,
+  registerAgentTools,
+  toolName,
+  useViewTool,
+  workspaceTools,
+  type WorkspaceToolsOptions,
+} from "@sincpro/web-composer/state/agent";
+export {
   type ApiFactory,
   createApiFactory,
   type Target,

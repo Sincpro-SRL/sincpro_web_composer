@@ -103,7 +103,11 @@ export function ModalWindow({ title, blur, size, phone, onClose, children }: Mod
           phone
             ? undefined
             : {
-                transform: `translate(${offset.x}px, ${offset.y}px)`,
+                /* `left`/`top` and not `transform`: a transform makes the modal the box every
+                   `position: fixed` inside it is placed against — the card a calendar or a kanban
+                   drags would be drawn off its pointer. */
+                left: offset.x,
+                top: offset.y,
                 ...(size === undefined ? {} : { width: size.w, height: size.h }),
               }
         }
