@@ -15,6 +15,7 @@ import {
   ContactoView,
   Elegir,
   FacturaNueva,
+  PagoNuevo,
   Seguidor,
 } from "./vistas";
 
@@ -136,5 +137,11 @@ export const CONTABILIDAD: readonly ViewSpec[] = [
     title: () => "Factura nueva",
     goto: true,
     load: async () => FacturaNueva,
+  },
+  {
+    domain: "contabilidad",
+    kind: "pago-nuevo",
+    title: (ref) => `Registrar pago de ${ref.params?.["asiento"] ?? "un asiento"}`,
+    load: async () => PagoNuevo,
   },
 ];

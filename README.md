@@ -85,24 +85,36 @@ One **page**, with its **trail** (the breadcrumb), and around it:
 | **peek**    | A drawer over the page that does not cover the panels                   | Reading without leaving the place            |
 | **window**  | Floating: moves anywhere, resizes, can grow into the page               | A quick look or edit on top of what you do   |
 | **side**    | Docked left, right or at the bottom, resizable                          | A second context that stays: compare, follow |
+| **modal**   | Over the surface that asked, blocking only it; moves by its title       | A question, a chooser, a short form          |
 
 A view opens anything with one call and lets the workspace decide the rest:
 
 ```ts
 api.open(ref); // the page — inside the peek, a step IN the drawer
 api.open(ref, { to: "peek" }); // or "window", or "side"
+api.open(ref, { to: "modal" }); // over THIS surface only; { blur: true } blurs what it covers
+api.over; // in a modal: the record it was opened over — its context (null elsewhere)
 api.replace(ref); // show it HERE without a step back: the record a form just created
 api.setParams({ tenant }); // a filter that lives in the reference: survives reload and links
 useCrumbs(api); // the breadcrumb, ready for List.Crumbs / Record.Crumbs — follows setTitle
 api.back(); // one step back: the page's breadcrumb, or the peek's own trail
-api.close(); // leave: closes the panel or the peek; on the page, goes back — «Cancel» anywhere
+api.close(); // leave: closes the panel, the peek or the modal; on the page, goes back
 api.expand(); // a window, a side panel or the peek grows into the page
 api.setTitle(name); // the record's real name, for the crumbs and the frames, once loaded
 api.setDirty(true); // unsaved: a crumb, a close or the browser's Back ask first
 api.select(refs); // publish what this view has selected
 api.context; // read what the user is on and what is selected — references only
 api.pick(ref, onPick); // open a chooser (a many2one search); its view calls api.answer(ref)
+api.pick(ref, onPick, { to: "modal" }); // the chooser as a modal over the form
 ```
+
+A **modal** belongs to the surface it covers — the page, a window, a side panel or the peek —
+and blocks only that one: the rest of the workspace keeps answering, and a window keeps moving
+and closing by its own title bar. One per surface: opening another one over the same surface,
+or from inside it, replaces it. When its surface shows another record or closes, the modal goes
+with it (asking first if something was typed). What it shares with whoever opened it travels in
+its reference (`params`) and comes back with `api.answer`; `api.over` says what it covers. No
+blur unless asked.
 
 From the app, around the workspace: `workspace.start(ref)` starts over from a menu (no
 breadcrumb behind, no peek, the panels stay), and `useWorkspace({ hash: true })` puts the
@@ -118,7 +130,8 @@ The same gesture means the same thing on every screen:
 | A row of a list                                     | click                    | **page**, with breadcrumb                   |
 | A record's name INSIDE the peek                     | click                    | a step **in the peek**; ← comes back        |
 | The record's name in a column (`RecordLink`)        | hover icons, Space, ⇧, ⌘ | **peek**, **side**, **window**              |
-| A many2one field                                    | open · search            | **window** · a window that **answers**      |
+| A many2one field                                    | open · search            | **window** · a **modal** that **answers**   |
+| A short task on a record (register a payment)       | click                    | **modal** over that record                  |
 | A record's buttons that _lead_ (see its items)      | click                    | **side**                                    |
 | A record's buttons that _produce_ (post, reconcile) | click                    | nothing opens: they act on the record       |
 | Ticking rows                                        | select                   | nothing opens: the context changes          |
@@ -210,7 +223,8 @@ anywhere above the workspace — no stylesheet to import:
   --sc-surface: var(--my-surface);
   --sc-accent: var(--my-brand);
   /* --sc-ground --sc-line --sc-line-strong --sc-ink --sc-muted --sc-danger --sc-scrim
-     --sc-shadow --sc-radius --sc-radius-control --sc-text --sc-text-small */
+     --sc-shadow --sc-radius --sc-radius-control --sc-text --sc-text-small
+     --sc-icon (14px: every icon in a control, yours too) --sc-modal-scrim --sc-modal-blur */
 }
 ```
 
@@ -226,8 +240,9 @@ The composer owns the behaviour; the look is yours. Take only what you need:
      workspace={workspace}
      registry={registry}
      skin={{
-       icons: { close: X, more: Ellipsis }, // any component taking className / strokeWidth
+       icons: { close: X, more: Ellipsis }, // drawn at --sc-icon, whatever size they come in
        Peek: MyDrawer, // ({ title, onClose, actions, children })
+       Modal: MyModal, // ({ title, blur, onClose, children })
        Confirm: MyConfirm, // ({ open, title, detail, keep, discard, onAnswer })
        Notice: MyNotice, // ({ heading, detail, bad })
      }}

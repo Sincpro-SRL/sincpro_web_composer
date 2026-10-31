@@ -1,5 +1,6 @@
 import type {
   Dock,
+  OpenModalOptions,
   OpenPanelOptions,
   ResourceRef,
   SessionMemory,
@@ -63,6 +64,11 @@ export type WorkspaceStore = {
   closePeek: () => void;
   peekToPage: () => void;
   peekToSide: (zone?: Zone) => void;
+
+  /** `view` over `host` (`PAGE`, `PEEK`, a panel id — or a modal's id, to replace it), blocking
+   *  only that surface. */
+  openModal: (host: string, view: ResourceRef, options?: OpenModalOptions) => void;
+  closeModal: (host: string) => void;
 
   /** The name a view gives `ref` (see `api.setTitle`). */
   setTitle: (ref: ResourceRef, title: string | null) => void;
@@ -185,7 +191,7 @@ export function createWorkspaceStore({
   /** Runs `change`, asking first if it would throw away something unsaved. After a «yes» it
    *  runs again on the state of THEN — the answer may have taken a while. */
   function run(change: (w: Workspace) => Workspace, mode: History): Promise<unknown> | void {
-    const next = change(state);
+    const next = model.settleModals(change(state));
     if (next === state) return;
     const lost = lostIn(next);
     if (lost.length === 0) return commit(next, mode);
@@ -283,6 +289,10 @@ export function createWorkspaceStore({
     closePeek: () => go(model.closePeek),
     peekToPage: () => go(model.peekToPage),
     peekToSide: (zone) => go((w) => model.peekToSide(w, zone)),
+
+    openModal: (host, view, options) =>
+      go((w) => model.openModal(w, host, view, options), History.Replace),
+    closeModal: (host) => go((w) => model.closeModal(w, host), History.Replace),
 
     setTitle: (ref, title) => go((w) => model.nameRef(w, ref, title), History.Replace),
     setDirty: (surface, ref, on) => {

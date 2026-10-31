@@ -28,15 +28,26 @@ import type { WorkspaceStore } from "@sincpro/web-composer/state/store";
 export type Target =
   | { surface: typeof Surface.Page }
   | { surface: typeof Surface.Panel; panelId: string }
-  | { surface: typeof Surface.Peek };
+  | { surface: typeof Surface.Peek }
+  | { surface: typeof Surface.Modal; host: string };
 
-/** The id the workspace knows the surface by: `PAGE`, `PEEK` or the panel id. */
+/** The id the workspace knows the surface by: `PAGE`, `PEEK`, the panel id or `modal:<host>`. */
 const surfaceId = (target: Target) =>
   target.surface === Surface.Panel
     ? target.panelId
     : target.surface === Surface.Peek
       ? PEEK
-      : PAGE;
+      : target.surface === Surface.Modal
+        ? model.modalId(target.host)
+        : PAGE;
+
+/** The other way: the target of a surface the workspace knows by `id` — the focus, say. */
+export function targetOf(id: string): Target {
+  if (id === PAGE) return { surface: Surface.Page };
+  if (id === PEEK) return { surface: Surface.Peek };
+  if (id.startsWith(model.MODAL)) return { surface: Surface.Modal, host: model.hostOf(id) };
+  return { surface: Surface.Panel, panelId: id };
+}
 
 export type ApiFactory = {
   for: (resource: ResourceRef, target: Target) => WorkspaceApi;
@@ -55,7 +66,8 @@ export type ApiFactoryOptions = {
   defaultOpen?: Destination;
 };
 
-/** A panel's frame already says what it shows. One array, so it reads as «unchanged». */
+/** A panel's or a modal's frame already says what it shows. One array, so it reads as
+ *  «unchanged». */
 const NO_CRUMBS: readonly Crumb[] = [];
 
 /** A chooser open in a panel, waiting for its answer. */
@@ -89,6 +101,7 @@ export function createApiFactory(
   function build(resource: ResourceRef, target: Target): WorkspaceApi {
     const me = surfaceId(target);
     const inPeek = target.surface === Surface.Peek;
+    const inModal = target.surface === Surface.Modal;
 
     /** Still showing what this API was lent for. */
     const here = () => {
@@ -96,8 +109,12 @@ export function createApiFactory(
       return now !== null && model.sameRef(now, resource);
     };
 
-    function open(ref: ResourceRef, to: Destination) {
-      if (to === Destination.Peek) {
+    /** In a modal, its blur stays what it was opened with when its view changes. */
+    const blurNow = () => model.modalOver(store.get(), model.hostOf(me))?.blur ?? false;
+
+    function open(ref: ResourceRef, to: Destination, blur = false) {
+      if (to === Destination.Modal) store.openModal(me, ref, { blur });
+      else if (to === Destination.Peek) {
         if (inPeek) store.drillPeek(ref);
         else store.peek(ref);
       } else if (to === Destination.Window) store.openPanel(ref, Zone.Floating);
@@ -108,6 +125,7 @@ export function createApiFactory(
 
     function replace(ref: ResourceRef) {
       if (target.surface === Surface.Panel) store.navigatePanel(target.panelId, ref);
+      else if (inModal) store.openModal(me, ref, { blur: blurNow() });
       else if (inPeek) store.replacePeek(ref);
       else store.replace(ref);
     }
@@ -139,7 +157,7 @@ export function createApiFactory(
      *  equal labels on an equal trail are an equal breadcrumb. */
     let last: { key: string; crumbs: readonly Crumb[] } | null = null;
     function crumbs(): readonly Crumb[] {
-      if (target.surface === Surface.Panel) return NO_CRUMBS;
+      if (target.surface === Surface.Panel || inModal) return NO_CRUMBS;
       const next = freshCrumbs();
       const key = `${store.get().trail.length}\u0000${next.map((c) => c.label).join("\u0000")}`;
       if (last?.key === key) return last.crumbs;
@@ -150,6 +168,7 @@ export function createApiFactory(
     return {
       self: resource,
       surface: target.surface,
+      over: inModal ? (model.modalOver(store.get(), target.host)?.over ?? null) : null,
       context,
 
       open: (ref, options) =>
@@ -157,10 +176,12 @@ export function createApiFactory(
           ref,
           options?.to ??
             (inPeek && defaultOpen === Destination.Page ? Destination.Peek : defaultOpen),
+          options?.blur,
         ),
 
       navigate: (to) => {
         if (target.surface === Surface.Panel) store.navigatePanel(target.panelId, to);
+        else if (inModal) replace(to);
         else if (inPeek) store.drillPeek(to);
         else store.push(to);
       },
@@ -186,6 +207,7 @@ export function createApiFactory(
 
       close: () => {
         if (target.surface === Surface.Panel) store.closePanel(target.panelId);
+        else if (inModal) store.closeModal(me);
         else if (inPeek) store.closePeek();
         else store.back();
       },
@@ -204,6 +226,11 @@ export function createApiFactory(
 
       pick: (ref, onPick, options) => {
         const to = options?.to ?? Destination.Window;
+        if (to === Destination.Modal) {
+          open(ref, to, options?.blur);
+          choosers.set(model.modalId(model.hostOf(me)), onPick);
+          return;
+        }
         if (to === Destination.Peek) {
           store.peek(ref);
           choosers.set(PEEK, onPick);
@@ -220,7 +247,8 @@ export function createApiFactory(
         /* Forget it BEFORE closing, so closing is not mistaken for anything else. */
         choosers.delete(me);
         onPick(value);
-        if (inPeek) store.closePeek();
+        if (inModal) store.closeModal(me);
+        else if (inPeek) store.closePeek();
         else if (target.surface === Surface.Panel) store.closePanel(target.panelId);
       },
     };

@@ -11,7 +11,9 @@ import {
   createRegistry,
   Destination,
   EMPTY,
+  modalId,
   openPanel,
+  PAGE,
   PEEK,
   push,
   Surface,
@@ -223,6 +225,75 @@ test("`pick` also works from a peek", () => {
   factory.for(PAG, { surface: Surface.Peek }).answer(FAC);
   assert.equal(got, "FAC-12");
   assert.equal(store.get().peek, null);
+});
+
+test("a modal over a window: it knows what it covers, answers, and leaves the window", () => {
+  const { store, factory, page } = setup();
+  page.open(FAC, { to: Destination.Window });
+  const id = store.get().panels[0]!.id;
+  const win = factory.for(FAC, { surface: Surface.Panel, panelId: id });
+  let got = "";
+
+  win.pick({ ...NUEVO, params: { for: "FAC-12" } }, (v) => (got = v.id ?? ""), {
+    to: Destination.Modal,
+  });
+  assert.equal(store.get().panels.length, 1, "no new panel: it sits over the window");
+  assert.equal(store.get().focus, modalId(id));
+
+  const modal = factory.for(store.get().modals[0]!.view, {
+    surface: Surface.Modal,
+    host: id,
+  });
+  assert.equal(modal.surface, Surface.Modal);
+  assert.equal(modal.over?.id, "FAC-12", "its context: the record underneath");
+  assert.equal(
+    modal.self.params?.["for"],
+    "FAC-12",
+    "what they share travels in the reference",
+  );
+  assert.deepEqual(modal.crumbs(), [], "its frame says what it shows");
+  assert.equal(win.over, null, "only a modal is over something");
+
+  modal.answer(PAG);
+  assert.equal(got, "PAG-7");
+  assert.deepEqual(store.get().modals, [], "answering closes the modal…");
+  assert.equal(store.get().panels.length, 1, "…and only the modal");
+  assert.equal(store.get().focus, id, "the focus goes back to the window");
+});
+
+test("inside a modal, `navigate` changes it in place and `close` closes it", () => {
+  const { store, factory, page } = setup();
+  page.open(APUNTE, { to: Destination.Modal, blur: true });
+  const modal = factory.for(APUNTE, { surface: Surface.Modal, host: PAGE });
+
+  modal.navigate(NUEVO);
+  assert.equal(store.get().modals.length, 1);
+  assert.equal(store.get().modals[0]!.view.kind, "nuevo");
+  assert.equal(store.get().modals[0]!.blur, true, "it keeps the blur it was opened with");
+  assert.equal(store.get().trail.length, 0, "the page did not move");
+
+  factory.for(NUEVO, { surface: Surface.Modal, host: PAGE }).close();
+  assert.deepEqual(store.get().modals, []);
+  assert.equal(store.get().page?.kind, "asientos", "closing it leaves the page where it was");
+});
+
+test("a modal with unsaved changes asks before it goes", () => {
+  let asked = 0;
+  const store = createWorkspaceStore({
+    initial: push(EMPTY, ASIENTOS),
+    confirmDiscard: () => {
+      asked += 1;
+      return false;
+    },
+  });
+  const factory = createApiFactory(store, { registry: REGISTRY });
+  factory.for(ASIENTOS, { surface: Surface.Page }).open(NUEVO, { to: Destination.Modal });
+  factory.for(NUEVO, { surface: Surface.Modal, host: PAGE }).setDirty(true);
+
+  store.push(FAC);
+  assert.equal(asked, 1, "leaving the page would throw the modal away");
+  assert.equal(store.get().page?.kind, "asientos", "and «keep editing» stays");
+  assert.equal(store.get().modals.length, 1);
 });
 
 test("a view reads the context and publishes its selection", () => {

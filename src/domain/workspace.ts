@@ -44,6 +44,24 @@ export type Panel = {
 /** How much of the container each docked zone takes. */
 export type Zones = Record<Dock, number>;
 
+/**
+ * A view over ONE surface — the page, the peek or a panel — blocking only it: a question, a
+ * chooser, a short form. One per surface: a modal over a modal is the road to simulated windows,
+ * so opening another one over the same surface replaces it.
+ *
+ * It belongs to what its host shows (`over`): when the host shows another resource or goes away
+ * the modal is gone, and coming back to that resource does not bring it back.
+ */
+export type Modal = {
+  /** `PAGE`, `PEEK` or a panel id. */
+  host: string;
+  /** What the host showed when the modal opened — its context (`api.over`). */
+  over: ResourceRef;
+  view: ResourceRef;
+  /** Blur what it covers. Off unless asked: the host is blocked, not hidden. */
+  blur: boolean;
+};
+
 /** What a selection belongs to, and the references selected. */
 export type Selected = { by: string; refs: readonly ResourceRef[] };
 
@@ -67,12 +85,20 @@ export type Workspace = {
   /** The names views gave their resources once loaded (`api.setTitle`), by `formatRef`. The
    *  crumbs and the frames show them instead of the slug. Session memory, not in the URL. */
   titles: Readonly<Record<string, string>>;
+  /** At most one per host. Session memory, not in the URL: a modal is a moment, not a place. */
+  modals: readonly Modal[];
 };
 
 /** The page is not a panel and has no id; it needs one so it can be focused and maximized. */
 export const PAGE = "page";
 /** Nor is the peek; it needs one to take the focus and publish a selection. */
 export const PEEK = "peek";
+/** A modal is known by its host: `modal:page`, `modal:p2`. */
+export const MODAL = "modal:";
+export const modalId = (host: string): string => `${MODAL}${host}`;
+const isModalId = (id: string) => id.startsWith(MODAL);
+/** The surface under a modal; any other surface is its own host. */
+export const hostOf = (id: string): string => (isModalId(id) ? id.slice(MODAL.length) : id);
 
 export const DEFAULT_ZONES: Zones = {
   [Zone.Left]: 0.28,
@@ -99,6 +125,7 @@ export const EMPTY: Workspace = {
   maximized: null,
   selected: null,
   titles: {},
+  modals: [],
 };
 
 const clampZone = (n: number) => Math.max(MIN_ZONE, Math.min(MAX_ZONE, n));
@@ -114,11 +141,21 @@ function nextId(used: readonly string[]): string {
 export const findPanel = (w: Workspace, id: string): Panel | null =>
   w.panels.find((p) => p.id === id) ?? null;
 
-/** What a surface shows now — the page, the peek or a panel — or `null` if it is not there. */
+/** What a surface shows now — the page, the peek, a panel or a modal — or `null` if it is not
+ *  there. */
 export function refOn(w: Workspace, surface: string): ResourceRef | null {
   if (surface === PAGE) return w.page;
   if (surface === PEEK) return w.peek;
+  if (isModalId(surface)) return modalOver(w, hostOf(surface))?.view ?? null;
   return findPanel(w, surface)?.view ?? null;
+}
+
+/** The modal over `host`, while its host still shows what it was opened over. */
+export function modalOver(w: Workspace, host: string): Modal | null {
+  const modal = w.modals.find((m) => m.host === host);
+  if (modal === undefined) return null;
+  const shown = refOn(w, host);
+  return shown !== null && sameRef(rootRef(shown), rootRef(modal.over)) ? modal : null;
 }
 
 export const panelsIn = (w: Workspace, zone: Zone): readonly Panel[] =>
@@ -271,13 +308,13 @@ export function movePanel(w: Workspace, id: string, zone: Zone): Workspace {
  *  up empty with panels inside it. */
 export function closePanel(w: Workspace, id: string): Workspace {
   if (findPanel(w, id) === null) return w;
-  return {
+  return settleModals({
     ...w,
     panels: normalizeAll(w.panels.filter((p) => p.id !== id)),
     maximized: w.maximized === id ? null : w.maximized,
     focus: w.focus === id ? PAGE : w.focus,
     selected: dropSelection(w, id),
-  };
+  });
 }
 
 /** Changes what a panel looks at without moving or closing it. */
@@ -457,6 +494,62 @@ export function peekToSide(w: Workspace, zone: Zone = Zone.Right): Workspace {
   return w.peek === null ? w : closePeek(openPanel(w, w.peek, { zone }));
 }
 
+/* ── Modals ─────────────────────────────────────────────────────────── */
+
+export type OpenModalOptions = { blur?: boolean };
+
+/**
+ * `view` over `host`, which keeps its place and its state underneath. Asked from inside a
+ * modal, it replaces that one: same host, no stacking. It takes the focus, so the shortcuts and
+ * ⌘K talk to it.
+ */
+export function openModal(
+  w: Workspace,
+  host: string,
+  view: ResourceRef,
+  { blur = false }: OpenModalOptions = {},
+): Workspace {
+  const under = hostOf(host);
+  const over = refOn(w, under);
+  if (over === null) return w;
+
+  const id = modalId(under);
+  const current = modalOver(w, under);
+  if (current !== null && sameRef(current.view, view) && current.blur === blur)
+    return focusPanel(w, id);
+
+  const modals = [
+    ...w.modals.filter((m) => m.host !== under && modalOver(w, m.host) !== null),
+    { host: under, over, view, blur },
+  ];
+  return { ...w, modals, focus: id, selected: dropSelection(w, id) };
+}
+
+/** Closes the modal over `host` (or the modal itself, by its id). The focus goes back to the
+ *  surface it covered. */
+export function closeModal(w: Workspace, host: string): Workspace {
+  const under = hostOf(host);
+  if (!w.modals.some((m) => m.host === under)) return w;
+  const id = modalId(under);
+  return {
+    ...w,
+    modals: w.modals.filter((m) => m.host !== under),
+    focus: w.focus === id ? (refOn(w, under) === null ? PAGE : under) : w.focus,
+    selected: dropSelection(w, id),
+  };
+}
+
+/**
+ * Forgets every modal whose host no longer shows what it was opened over. Without it a modal
+ * left behind would come back with its record — open a record, open a modal, go to another
+ * page and back, and the question would be asked again. The store runs it after every change.
+ */
+export function settleModals(w: Workspace): Workspace {
+  const gone = w.modals.filter((m) => modalOver(w, m.host) === null);
+  if (gone.length === 0) return w;
+  return gone.reduce((acc, m) => closeModal(acc, m.host), w);
+}
+
 /* ── Context ────────────────────────────────────────────────────────── */
 
 const NO_REFS: readonly ResourceRef[] = [];
@@ -496,6 +589,7 @@ const reachable = (w: Workspace): readonly ResourceRef[] => [
   ...w.peekTrail,
   ...(w.peek === null ? [] : [w.peek]),
   ...w.panels.map((p) => p.view),
+  ...w.modals.map((m) => m.view),
 ];
 
 /**

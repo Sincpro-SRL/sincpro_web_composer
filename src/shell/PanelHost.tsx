@@ -7,6 +7,7 @@ import {
   KEYBOARD_STEP,
   layout,
   type Length,
+  modalOver,
   PAGE,
   type Registry,
   sizeAt,
@@ -17,6 +18,7 @@ import {
   Zone,
 } from "@sincpro/web-composer/domain/index";
 import { type ComposerCopy, composerCopy } from "@sincpro/web-composer/shell/copy";
+import { ModalLayer } from "@sincpro/web-composer/shell/Modal";
 import { PanelFrame } from "@sincpro/web-composer/shell/PanelFrame";
 import { ViewHost } from "@sincpro/web-composer/shell/ViewHost";
 import type { ApiFactory } from "@sincpro/web-composer/state/api";
@@ -24,6 +26,7 @@ import { useDropZone, usePanelDragArmed } from "@sincpro/web-composer/state/drag
 import type { WorkspaceStore } from "@sincpro/web-composer/state/store";
 import {
   type CSSProperties,
+  Fragment,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type RefObject,
@@ -307,22 +310,37 @@ export function PanelHost({ workspace, overlay, registry, store, api }: PanelHos
           ...(slot.floating ? { zIndex: 20 + slot.z } : {}),
         };
 
+        const modal = modalOver(workspace, slot.id);
+
+        /* The page has no frame to hold its modal: it stands beside it, over the same box, and
+           the page underneath is inert. */
         if (isPage) {
           return (
-            <div
-              key={slot.id}
-              hidden={!slot.visible}
-              style={style}
-              onPointerDownCapture={() => store.focusPanel(PAGE)}
-              className="sc-slot"
-              data-page=""
-            >
-              <ViewHost
-                resource={slot.view}
-                registry={registry}
-                api={api.for(slot.view, { surface: Surface.Page })}
-              />
-            </div>
+            <Fragment key={slot.id}>
+              <div
+                hidden={!slot.visible}
+                inert={modal !== null}
+                style={style}
+                onPointerDownCapture={() => store.focusPanel(PAGE)}
+                className="sc-slot"
+                data-page=""
+              >
+                <ViewHost
+                  resource={slot.view}
+                  registry={registry}
+                  api={api.for(slot.view, { surface: Surface.Page })}
+                />
+              </div>
+              {modal === null || !slot.visible ? null : (
+                <ModalLayer
+                  modal={modal}
+                  registry={registry}
+                  store={store}
+                  api={api}
+                  style={boxStyle(slot.box)}
+                />
+              )}
+            </Fragment>
           );
         }
 
@@ -346,6 +364,11 @@ export function PanelHost({ workspace, overlay, registry, store, api }: PanelHos
               onMaximize={() => store.maximize(slot.id)}
               onFocus={() => store.focusPanel(slot.id)}
               onMoveStart={(e) => moveWindow(e, slot)}
+              modal={
+                modal === null ? null : (
+                  <ModalLayer modal={modal} registry={registry} store={store} api={api} />
+                )
+              }
               actions={{
                 onMove: (z) => store.movePanel(slot.id, z),
                 onCollapse: () => store.collapsePanel(slot.id),

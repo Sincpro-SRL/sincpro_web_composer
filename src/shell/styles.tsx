@@ -1,5 +1,5 @@
 /**
- * The composer's own skin: the frames, the drawer, the rail, the dialog and ⌘K, with no design
+ * The composer's own skin: the frames, the drawer, the modal, the rail, the dialog and ⌘K, with no design
  * system behind it. It is the minimum that makes the windows usable — the views inside them are
  * the application's, drawn with whatever it uses.
  *
@@ -33,6 +33,10 @@ const CSS = `
   --_radius-control: var(--sc-radius-control, 6px);
   --_text: var(--sc-text, 13px);
   --_text-small: var(--sc-text-small, 12px);
+  /* Every glyph the composer places — its own or the application's — is drawn at this size. */
+  --_icon: var(--sc-icon, 14px);
+  --_modal-scrim: var(--sc-modal-scrim, rgb(0 0 0 / 0.14));
+  --_modal-blur: var(--sc-modal-blur, 3px);
   --_tint: color-mix(in srgb, var(--_accent) 10%, transparent);
   --_hover: color-mix(in srgb, var(--_ink) 7%, transparent);
 
@@ -47,6 +51,10 @@ const CSS = `
 }
 .sc-root *, .sc-root *::before, .sc-root *::after { box-sizing: border-box; }
 .sc-root :focus-visible { outline: 2px solid var(--_accent); outline-offset: 1px; }
+.sc-root :is(.sc-control, .sc-button, .sc-menu-item, .sc-palette-search, .sc-option-icon) svg {
+  flex-shrink: 0; width: var(--_icon); height: var(--_icon);
+}
+.sc-root .sc-link-icons .sc-control svg { width: calc(var(--_icon) - 2px); height: calc(var(--_icon) - 2px); }
 
 .sc-empty { display: flex; flex: 1; min-height: 0; align-items: center; justify-content: center; padding: 32px; }
 .sc-host { position: relative; flex: 1; min-height: 0; overflow: hidden; }
@@ -79,6 +87,7 @@ const CSS = `
   font-size: var(--_text-small); font-weight: 500;
 }
 .sc-header[data-rail] .sc-title { min-height: 0; padding: 4px 0; writing-mode: vertical-rl; }
+.sc-body-wrap { position: relative; display: flex; flex: 1; flex-direction: column; min-height: 0; }
 .sc-body { flex: 1; min-height: 0; overflow: auto; container-type: inline-size; }
 
 .sc-control {
@@ -142,6 +151,29 @@ const CSS = `
 }
 .sc-peek-actions { display: flex; flex-shrink: 0; flex-wrap: wrap; gap: 6px; padding: 6px 12px; border-bottom: 1px solid var(--_line); }
 .sc-peek-body { flex: 1; min-height: 0; overflow: auto; padding: 12px; container-type: inline-size; }
+
+.sc-modal-layer { position: absolute; inset: 0; z-index: 1; }
+.sc-overlay > .sc-modal-layer { z-index: 31; }
+.sc-modal-scrim {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  padding: 12px; overflow: hidden; background: var(--_modal-scrim);
+}
+.sc-modal-scrim[data-blur] { backdrop-filter: blur(var(--_modal-blur)); }
+.sc-modal {
+  display: flex; flex-direction: column; width: min(28rem, 100%); max-height: 100%;
+  overflow: hidden; background: var(--_surface); border: 1px solid var(--_line-strong);
+  border-radius: var(--_radius); box-shadow: var(--_shadow); outline: 0;
+}
+.sc-modal-head {
+  display: flex; flex-shrink: 0; align-items: center; gap: 8px; height: 34px; padding: 0 3px 0 12px;
+  background: var(--_ground); border-bottom: 1px solid var(--_line);
+  cursor: move; user-select: none; touch-action: none;
+}
+.sc-modal-title {
+  flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: var(--_text-small); font-weight: 600;
+}
+.sc-modal-body { flex: 1; min-height: 0; overflow: auto; container-type: inline-size; }
 
 .sc-button {
   display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px;

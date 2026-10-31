@@ -12,7 +12,7 @@ const meta: Meta = {
     docs: {
       description: {
         component:
-          "El composer pone el **comportamiento** y una piel mínima para funcionar solo. El **diseño es de la app**: los colores van por variables `--sc-*`, y con `skin` se cambian los íconos y las piezas — acá, los íconos de lucide y el cajón `Peek` de web-ui. Lo que no se pasa queda como viene. El composer no importa nada de esto: lo recibe.",
+          "El composer pone el **comportamiento** y una piel mínima para funcionar solo. El **diseño es de la app**: los colores van por variables `--sc-*`, y con `skin` se cambian los íconos y las piezas — acá, los íconos de lucide y el cajón `Peek` de web-ui. Un ícono ajeno se dibuja al tamaño del composer (`--sc-icon`, 14px), no al suyo. Lo que no se pasa queda como viene. El composer no importa nada de esto: lo recibe.",
       },
     },
   },
@@ -43,7 +43,10 @@ export const ConLaPielDeLaApp: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const frame = await canvas.findByRole("region", { name: "Asiento seleccionado" });
-    await expect(frame.querySelector("svg.lucide")).not.toBeNull();
+    const icon = frame.querySelector<SVGElement>(".sc-control svg.lucide");
+    await expect(icon).not.toBeNull();
+    /* lucide draws at 24px; in a control it is drawn at the composer's size, like its own. */
+    await expect(Math.round(icon!.getBoundingClientRect().width)).toBe(14);
 
     const [link] = await canvas.findAllByRole("button", { name: /^FAC-2026-0012$/ });
     link!.focus();
