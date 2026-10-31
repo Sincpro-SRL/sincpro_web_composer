@@ -1,6 +1,6 @@
 {
   "name": "@sincpro/web-composer",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "The Sincpro workspace for React: one page with its breadcrumb, a peek, side panels and windows, and ⌘K — all over references, never data.",
   "type": "module",
   "main": "./dist/index.js",
