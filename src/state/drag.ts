@@ -71,12 +71,13 @@ export function useDropZone(ref: RefObject<HTMLElement | null>, zone: Dock): boo
 export function useDraggableRef(
   ref: RefObject<HTMLElement | null>,
   resource: ResourceRef,
+  enabled = true,
 ): boolean {
   const [dragging, setDragging] = useState(false);
 
   useEffect(() => {
     const el = ref.current;
-    if (el === null) return;
+    if (el === null || !enabled) return;
 
     return draggable({
       element: el,
@@ -87,7 +88,7 @@ export function useDraggableRef(
       onDragStart: () => setDragging(true),
       onDrop: () => setDragging(false),
     });
-  }, [ref, resource]);
+  }, [ref, resource, enabled]);
 
   return dragging;
 }

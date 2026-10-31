@@ -140,6 +140,7 @@ The same gesture means the same thing on every screen:
 | A row of a list                                     | click                    | **page**, with breadcrumb                   |
 | A record's name INSIDE the peek                     | click                    | a step **in the peek**; ← comes back        |
 | The record's name in a column (`RecordLink`)        | hover icons, Space, ⇧, ⌘ | **peek**, **side**, **window**              |
+| A record's name inside a card that drags (kanban)   | `draggable={false}`      | the card drags; the name only clicks        |
 | A many2one field                                    | open · search            | **window** · a **modal** that **answers**   |
 | A short task on a record (register a payment)       | click                    | **modal** over that record                  |
 | A record's buttons that _lead_ (see its items)      | click                    | **side**                                    |
@@ -220,6 +221,27 @@ The Storybook in this repository is the long version: eleven accounting use case
 entries, journal items, bank reconciliation, a form with relations, an audit where the detail
 follows the selection, ⌘K, the keyboard, what happens when something fails, and your own
 design over the composer.
+
+### An agent in the browser (WebMCP)
+
+[WebMCP](https://webmachinelearning.github.io/webmcp/) lets a page offer **tools** to the agent
+built into the browser (`document.modelContext.registerTool`; a W3C Community Group draft, in
+Chrome behind an origin trial). Everything is feature-detected: without it nothing happens.
+
+```tsx
+<Composer workspace={workspace} registry={registry} agentTools />;
+// workspace.where · workspace.open · workspace.search · workspace.act (the ⌘K actions)
+
+// a view offers what ITS screen can do, alive while the view is:
+useViewTool(api, {
+  name: "register_payment", // offered as register_payment.invoice-F-1: the record it acts on
+  description: "Open the form to register this invoice's payment",
+  execute: () => api.open(paymentRef(invoice.id), { to: "modal" }),
+});
+```
+
+The agent is one more person at the desk: it opens through the same `open`, a phone still turns
+a window into the page, and throwing away what was typed still asks first.
 
 ### Testing a view
 

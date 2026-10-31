@@ -48,7 +48,15 @@ export const SobreUnaVentana: Story = {
     fireEvent.pointerDown(title, { pointerId: 1, clientX: 300, clientY: 200, button: 0 });
     fireEvent.pointerMove(window, { pointerId: 1, clientX: 340, clientY: 230 });
     fireEvent.pointerUp(window, { pointerId: 1, clientX: 340, clientY: 230 });
-    await expect(modal.style.transform).not.toBe("translate(0px, 0px)");
+    await expect(modal.style.left).not.toBe("0px");
+    await expect(modal.style.transform).toBe("");
+    /* Moved, it is still not the box a `position: fixed` inside it is placed against: the card a
+       calendar drags inside a modal stays under the pointer. */
+    const fixed = document.createElement("div");
+    fixed.style.cssText = "position: fixed; top: 0; left: 0; width: 1px; height: 1px";
+    modal.appendChild(fixed);
+    await expect(fixed.getBoundingClientRect().top).toBe(0);
+    fixed.remove();
 
     await userEvent.click(
       within(modal).getByRole("button", { name: "Elegir Globex Bolivia" }),

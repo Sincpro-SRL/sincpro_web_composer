@@ -23,6 +23,7 @@ import {
 } from "@sincpro/web-composer/shell/skin";
 import { ComposerStyles } from "@sincpro/web-composer/shell/styles";
 import { ViewHost } from "@sincpro/web-composer/shell/ViewHost";
+import { registerAgentTool, workspaceTools } from "@sincpro/web-composer/state/agent";
 import { createApiFactory, targetOf } from "@sincpro/web-composer/state/api";
 import { useDropMonitor } from "@sincpro/web-composer/state/drag";
 import type { WorkspaceStore } from "@sincpro/web-composer/state/store";
@@ -94,6 +95,9 @@ export type ComposerProps = {
   /** Below this width (px) of the WORKSPACE it behaves as a phone: one screen, windows and side
    *  panels open as the page, choosers as a sheet (`domain/phone.ts`). `0` never does. */
   phoneBelow?: number;
+  /** Offer the workspace to the browser's agent (WebMCP): where am I, open, search, act. Off by
+   *  default; without WebMCP in the browser it does nothing. One workspace per page should. */
+  agentTools?: boolean;
 };
 
 /**
@@ -151,6 +155,7 @@ export function Composer({
   onPaletteChange,
   skin: skinProp,
   phoneBelow = PHONE_WIDTH,
+  agentTools = false,
 }: ComposerProps) {
   const skin = useMemo(() => resolveSkin(skinProp), [skinProp]);
   const Drawer = skin.Peek ?? PeekDrawer;
@@ -224,6 +229,25 @@ export function Composer({
     if (ref === null) return;
     action.run(api.for(ref, targetOf(w.focus)));
   }
+
+  /* The tools call the latest `open` and `run`, which close over the current phone state. */
+  const latest = useRef({ open, run });
+  useLayoutEffect(() => {
+    latest.current = { open, run };
+  });
+  useEffect(() => {
+    if (!agentTools) return;
+    const stops = workspaceTools({
+      store: workspace,
+      registry,
+      titleOf: api.titleOf,
+      open: (ref, to) => latest.current.open(ref, to),
+      run: (action) => latest.current.run(action),
+    }).map(registerAgentTool);
+    return () => {
+      for (const stop of stops) stop();
+    };
+  }, [agentTools, workspace, registry, api]);
 
   const peeked = state.peek;
   const peekModal = modalOver(state, PEEK);

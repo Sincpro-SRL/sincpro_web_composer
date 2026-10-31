@@ -3,6 +3,7 @@ import {
   type ResourceRef,
   Surface,
   useCrumbs,
+  useViewTool,
   useWorkspaceContext,
   type ViewProps,
   type WorkspaceApi,
@@ -409,6 +410,16 @@ function LineasCompactas({ asiento }: { asiento: string }) {
  */
 export function AsientoView({ resource, api }: ViewProps) {
   const crumbs = useCrumbs(api);
+  /* Lo que esta pantalla sabe hacer, ofrecido también al agente del navegador (WebMCP): vive
+     mientras la vista está, y su nombre dice sobre qué asiento actúa. */
+  useViewTool(api, {
+    name: "registrar_pago",
+    description: "Abre el formulario para registrar el pago de esta factura",
+    execute: () => {
+      api.open(pagoNuevo(resource.id ?? ""), { to: Destination.Modal });
+      return "Formulario de pago abierto";
+    },
+  });
   const all = useAsientos();
   const a = asientoById(all, resource.id);
   if (a === undefined)

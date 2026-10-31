@@ -17,7 +17,7 @@ import { type KeyboardEvent, type MouseEvent, type ReactNode, useRef } from "rea
  *   ⇧ click        a panel beside
  *   ⌘ / Ctrl click a window
  *   the icons      every destination by name, for who does not know the keys
- *   drag           to an edge of the workspace: a panel
+ *   drag           to an edge of the workspace: a panel (`draggable={false}` turns it off)
  *
  * The icons appear on hover and on focus, never taking room from the name.
  */
@@ -35,6 +35,9 @@ export type RecordLinkProps = {
   to?: Destination;
   /** Hide the icons — for a dense table where only the keys are wanted. */
   compact?: boolean;
+  /** Dragging the name to an edge opens it as a panel. Off inside something that drags itself —
+   *  a kanban card, a calendar event: the gesture belongs to the card, not to the name in it. */
+  draggable?: boolean;
   children: ReactNode;
 };
 
@@ -43,12 +46,13 @@ export function RecordLink({
   resource,
   to,
   compact = false,
+  draggable = true,
   children,
 }: RecordLinkProps) {
   const copy = composerCopy().link;
   const icons = useSkin().icons;
   const box = useRef<HTMLSpanElement>(null);
-  const dragging = useDraggableRef(box, resource);
+  const dragging = useDraggableRef(box, resource, draggable);
 
   /* The name sits inside a row that has its own click (open, peek). Whatever this control
      does, the row must not do it too. */
