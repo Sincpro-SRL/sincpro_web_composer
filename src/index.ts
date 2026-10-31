@@ -80,6 +80,12 @@ export {
   type WorkspaceStore,
 } from "@sincpro/web-composer/state/store";
 export {
+  type ApiCall,
+  createTestApi,
+  type TestApi,
+  type TestApiOptions,
+} from "@sincpro/web-composer/state/testing";
+export {
   useKeyboard,
   type UseKeyboardOptions,
 } from "@sincpro/web-composer/state/useKeyboard";

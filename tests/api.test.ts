@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   Composer,
   createApiFactory,
+  createTestApi,
   createWorkspaceStore,
   PanelHost,
   ViewHost,
@@ -323,6 +324,40 @@ test("on a phone a window opens as the page, and a chooser as a modal over the f
   assert.equal(store.get().modals.length, 1);
   factory.for(PAG, { surface: Surface.Modal, host: PAGE }).answer(APUNTE);
   assert.equal(got, "A-1");
+});
+
+test("a chooser can answer any value, not only a reference: a confirmation", () => {
+  const { store, factory, page } = setup();
+  const answers: boolean[] = [];
+
+  page.pick<boolean>(NUEVO, (ok) => answers.push(ok), { to: Destination.Modal });
+  factory.for(NUEVO, { surface: Surface.Modal, host: PAGE }).answer(true);
+  assert.deepEqual(answers, [true]);
+  assert.deepEqual(store.get().modals, [], "answering closes it");
+
+  page.pick<boolean>(NUEVO, (ok) => answers.push(ok), { to: Destination.Modal });
+  factory.for(NUEVO, { surface: Surface.Modal, host: PAGE }).close();
+  assert.deepEqual(answers, [true], "closed without an answer: nobody is called");
+});
+
+test("a view is tested without a workspace: the test api remembers what it asked", () => {
+  const t = createTestApi(FAC, { surface: Surface.Modal, over: ASIENTOS });
+  assert.equal(t.api.over, ASIENTOS);
+  assert.deepEqual(t.api.crumbs(), []);
+
+  t.api.setTitle("Factura Acme");
+  t.api.open(PAG, { to: Destination.Modal });
+  assert.deepEqual(t.callsTo("setTitle")[0]!.args, ["Factura Acme"]);
+  assert.deepEqual(t.callsTo("open")[0]!.args, [PAG, { to: Destination.Modal }]);
+  assert.deepEqual(
+    t.calls.map((c) => c.method),
+    ["setTitle", "open"],
+  );
+
+  let got = "";
+  t.api.pick(APUNTE, (v) => (got = v.id ?? ""));
+  t.respond(APUNTE);
+  assert.equal(got, "A-1", "a chooser answers the way its view would");
 });
 
 test("a view reads the context and publishes its selection", () => {

@@ -108,15 +108,22 @@ export type WorkspaceApi = {
     subscribe: (listener: () => void) => () => void;
   };
 
-  /** Open `ref` as a chooser: when its view calls `answer`, `onPick` receives the value and
-   *  the chooser closes. */
-  pick: (
+  /**
+   * Open `ref` as a chooser: when its view calls `answer`, `onPick` receives the value and the
+   * chooser closes. The value is a reference by default — a many2one — but it can be anything
+   * the chooser's view answers: `true` for a confirmation, a date range, an amount. Closed
+   * without an answer, `onPick` is never called.
+   *
+   *     api.pick<boolean>(confirmRef, (ok) => ok && post(), { to: Destination.Modal });
+   */
+  pick: <T = ResourceRef>(
     ref: ResourceRef,
-    onPick: (value: ResourceRef) => void,
+    onPick: (value: T) => void,
     options?: PickOptions,
   ) => void;
-  /** From a chooser: deliver the value to whoever asked, and close this surface. */
-  answer: (value: ResourceRef) => void;
+  /** From a chooser: deliver the value to whoever asked, and close this surface. Nobody asked
+   *  (it was opened with `open`, not `pick`): nothing happens. */
+  answer: (value: unknown) => void;
 };
 
 /** Named `resource` rather than `ref` because `ref` is a reserved React prop. */

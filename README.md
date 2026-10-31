@@ -108,6 +108,7 @@ api.context; // read what the user is on and what is selected — references onl
 api.pick(ref, onPick); // open a chooser (a many2one search); its view calls api.answer(ref)
 api.pick(ref, onPick, { to: "modal" }); // the chooser as a modal over the form
 api.pick(ref, onPick, { size: { w: 720, h: 520 } }); // a chooser window at that size (480×360 without it)
+api.pick<boolean>(confirmRef, (ok) => ok && post(), { to: "modal" }); // any value, not only a ref
 ```
 
 A **modal** belongs to the surface it covers — the page, a window, a side panel or the peek —
@@ -219,6 +220,21 @@ The Storybook in this repository is the long version: eleven accounting use case
 entries, journal items, bank reconciliation, a form with relations, an audit where the detail
 follows the selection, ⌘K, the keyboard, what happens when something fails, and your own
 design over the composer.
+
+### Testing a view
+
+A view talks to the workspace only through its `api`, so a test checks what it ASKED for — no
+store, no shell, no browser:
+
+```ts
+import { createTestApi } from "@sincpro/web-composer";
+
+const t = createTestApi(invoiceRef("F-1")); // { surface, over, crumbs, selection } optional
+render(<Invoice resource={t.api.self} api={t.api} />);
+// … click «Register payment»
+expect(t.callsTo("open")[0].args).toEqual([paymentRef("F-1"), { to: "modal" }]);
+t.respond(true); // answers the last chooser it opened, as its view would
+```
 
 ## Your design over it
 
