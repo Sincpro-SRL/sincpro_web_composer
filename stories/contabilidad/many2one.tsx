@@ -8,7 +8,8 @@ import { includes } from "./datos";
  * A relation field, the way an ERP draws it. Three gestures, three destinations, one API:
  *
  *   type      what matches is proposed; picking fills the field
- *   «open»    the chosen record in a WINDOW (⇧ click: beside the form), without leaving the form
+ *   «open»    the chosen record in a WINDOW sized for a record (⇧ click: beside the form),
+ *             without leaving the form
  *   «search»  a list in a MODAL over the form that ANSWERS the field — `api.pick` and
  *             `api.answer`. It blocks the form only: wherever the form is, the rest answers.
  */
@@ -61,6 +62,8 @@ export function Many2One({
             ? undefined
             : api.open(recordOf(chosen.id), {
                 to: e.shiftKey ? Destination.Side : Destination.Window,
+                /* A record needs more room than the default window. */
+                size: { w: 560, h: 420 },
               })
         }
         className="inline-flex size-8 cursor-pointer items-center justify-center rounded-control text-muted hover:bg-ink/8 disabled:opacity-40"

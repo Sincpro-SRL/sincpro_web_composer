@@ -20,7 +20,8 @@ import {
 } from "react";
 
 /**
- * The composer's own modal: a small window centred over the surface that asked for it. It moves
+ * The composer's own modal: a small window centred over the surface that asked for it — on a
+ * phone, a sheet from the bottom. It moves
  * by its title — what is underneath may be what the person needs to read to answer — but never
  * further than its surface: it belongs to it, and leaving it would cover a neighbour that is
  * not blocked. It does not dim the rest of the workspace; that is the point of it.
@@ -71,7 +72,7 @@ function useMoveByTitle(box: RefObject<HTMLElement | null>) {
   return { offset, start };
 }
 
-export function ModalWindow({ title, blur, onClose, children }: ModalProps) {
+export function ModalWindow({ title, blur, size, phone, onClose, children }: ModalProps) {
   const copy = composerCopy().modal;
   const { close: CloseIcon } = useSkin().icons;
   const box = useRef<HTMLElement>(null);
@@ -87,21 +88,33 @@ export function ModalWindow({ title, blur, onClose, children }: ModalProps) {
   }, []);
 
   return (
-    <div className="sc-modal-scrim" {...(blur ? { "data-blur": "" } : {})}>
+    <div
+      className="sc-modal-scrim"
+      {...(blur ? { "data-blur": "" } : {})}
+      {...(phone ? { "data-phone": "" } : {})}
+    >
       <section
         ref={box}
         role="dialog"
         tabIndex={-1}
         aria-labelledby={titleId}
         className="sc-modal"
-        style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}
+        style={
+          phone
+            ? undefined
+            : {
+                transform: `translate(${offset.x}px, ${offset.y}px)`,
+                ...(size === undefined ? {} : { width: size.w, height: size.h }),
+              }
+        }
         onKeyDown={(e) => {
           if (e.key !== "Escape" || e.defaultPrevented) return;
           e.preventDefault();
           onClose();
         }}
       >
-        <header className="sc-modal-head" onPointerDown={start}>
+        {/* On a phone it is a sheet from the bottom: it does not move. */}
+        <header className="sc-modal-head" onPointerDown={phone ? undefined : start}>
           <h2 id={titleId} className="sc-modal-title">
             {title}
           </h2>
@@ -129,11 +142,19 @@ export type ModalLayerProps = {
   api: ApiFactory;
   /** Geometry only: where the host is, when the layer is not already inside it. */
   style?: CSSProperties;
+  phone?: boolean;
 };
 
 /** Where a modal stands: over its host's box, taking the workspace focus when touched. The skin
  *  draws what is inside it. */
-export function ModalLayer({ modal, registry, store, api, style }: ModalLayerProps) {
+export function ModalLayer({
+  modal,
+  registry,
+  store,
+  api,
+  style,
+  phone = false,
+}: ModalLayerProps) {
   const Window = useSkin().Modal ?? ModalWindow;
   const { host, view } = modal;
 
@@ -146,6 +167,8 @@ export function ModalLayer({ modal, registry, store, api, style }: ModalLayerPro
       <Window
         title={api.titleOf(view)}
         blur={modal.blur}
+        {...(modal.size === undefined ? {} : { size: modal.size })}
+        phone={phone}
         onClose={() => store.closeModal(host)}
       >
         <ViewHost

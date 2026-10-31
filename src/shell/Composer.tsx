@@ -1,9 +1,11 @@
 import {
   type Action,
   Destination,
+  destinationOnPhone,
   focusedRef,
   modalOver,
   PEEK,
+  PHONE_WIDTH,
   type Registry,
   type ResourceRef,
   Surface,
@@ -26,7 +28,16 @@ import { useDropMonitor } from "@sincpro/web-composer/state/drag";
 import type { WorkspaceStore } from "@sincpro/web-composer/state/store";
 import { useKeyboard } from "@sincpro/web-composer/state/useKeyboard";
 import { useWorkspaceState } from "@sincpro/web-composer/state/useWorkspace";
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type ReactNode,
+  type RefObject,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 /**
  * The workspace — the page, the panels around it, the peek and ⌘K — wired against the
@@ -80,7 +91,55 @@ export type ComposerProps = {
   /** Your design over the composer: icons, the peek drawer, the confirm dialog, the notice, or
    *  `styles: false` to drop the default sheet. What is not passed keeps the default. */
   skin?: ComposerSkin;
+  /** Below this width (px) of the WORKSPACE it behaves as a phone: one screen, windows and side
+   *  panels open as the page, choosers as a sheet (`domain/phone.ts`). `0` never does. */
+  phoneBelow?: number;
 };
+
+/**
+ * Whether the workspace is a phone, measured BEFORE paint: measuring after it drew the desk for a
+ * frame and swapped it, and a click in that frame landed on a panel that was going away. A
+ * workspace with no width yet (hidden, or not laid out) is not a phone.
+ */
+function usePhone(root: RefObject<HTMLElement | null>, below: number): boolean {
+  const [phone, setPhone] = useState(false);
+  useLayoutEffect(() => {
+    const el = root.current;
+    if (el === null) return;
+    const measure = (width: number) => setPhone(width > 0 && width < below);
+    measure(el.getBoundingClientRect().width);
+    if (typeof ResizeObserver === "undefined") return;
+    const watch = new ResizeObserver(([entry]) => {
+      if (entry !== undefined) measure(entry.contentRect.width);
+    });
+    watch.observe(el);
+    return () => watch.disconnect();
+  }, [root, below]);
+  return phone;
+}
+
+/** On a phone the panels that were open wait here: one tap brings each to the page. */
+function PhoneDock({
+  panels,
+  titleOf,
+  onBring,
+}: {
+  panels: readonly { id: string; view: ResourceRef }[];
+  titleOf: (ref: ResourceRef) => string;
+  onBring: (id: string) => void;
+}) {
+  const copy = composerCopy().phone;
+  return (
+    <nav aria-label={copy.alsoOpen} className="sc-dock">
+      <span className="sc-dock-label">{copy.alsoOpen}</span>
+      {panels.map((p) => (
+        <ChromeButton key={p.id} onClick={() => onBring(p.id)}>
+          {titleOf(p.view)}
+        </ChromeButton>
+      ))}
+    </nav>
+  );
+}
 
 export function Composer({
   workspace,
@@ -91,6 +150,7 @@ export function Composer({
   palette: paletteProp,
   onPaletteChange,
   skin: skinProp,
+  phoneBelow = PHONE_WIDTH,
 }: ComposerProps) {
   const skin = useMemo(() => resolveSkin(skinProp), [skinProp]);
   const Drawer = skin.Peek ?? PeekDrawer;
@@ -107,8 +167,21 @@ export function Composer({
     [onPaletteChange],
   );
 
+  const root = useRef<HTMLDivElement>(null);
+  const phone = usePhone(root, phoneBelow);
+  /* The API reads it at call time: a view's API is not rebuilt when the window is resized. */
+  const phoneNow = useRef(phone);
+  useLayoutEffect(() => {
+    phoneNow.current = phone;
+  }, [phone]);
+
   const api = useMemo(
-    () => createApiFactory(workspace, { registry, defaultOpen }),
+    () =>
+      createApiFactory(workspace, {
+        registry,
+        defaultOpen,
+        isPhone: () => phoneNow.current,
+      }),
     [workspace, registry, defaultOpen],
   );
   useEffect(() => api.dispose, [api]);
@@ -133,7 +206,8 @@ export function Composer({
 
   /** Where a chosen search result opens. Without a page yet, the first one becomes it —
    *  whatever was asked: a peek or a window over nothing would be invisible. */
-  function open(ref: ResourceRef, destination: Destination) {
+  function open(ref: ResourceRef, asked: Destination) {
+    const destination = phone ? destinationOnPhone(asked) : asked;
     if (workspace.get().page === null) workspace.push(ref);
     else if (destination === Destination.Peek) workspace.peek(ref);
     else if (destination === Destination.Window) workspace.openPanel(ref, Zone.Floating);
@@ -158,7 +232,7 @@ export function Composer({
 
   return (
     <SkinProvider value={skin}>
-      <div className="sc-root">
+      <div ref={root} className="sc-root" {...(phone ? { "data-phone": "" } : {})}>
         {skin.styles ? <ComposerStyles /> : null}
         {state.page === null ? (
           <div className="sc-empty">{empty}</div>
@@ -168,6 +242,7 @@ export function Composer({
             registry={registry}
             store={workspace}
             api={api}
+            phone={phone}
             overlay={
               peeked === null ? null : (
                 <>
@@ -185,13 +260,16 @@ export function Composer({
                       onClose={workspace.closePeek}
                       actions={
                         <>
-                          <ChromeButton
-                            onClick={() =>
-                              workspace.peekToSide(peekSpec?.preferredZone ?? Zone.Right)
-                            }
-                          >
-                            {copy.peek.openAsPanel}
-                          </ChromeButton>
+                          {/* On a phone there is no side to dock it to. */}
+                          {phone ? null : (
+                            <ChromeButton
+                              onClick={() =>
+                                workspace.peekToSide(peekSpec?.preferredZone ?? Zone.Right)
+                              }
+                            >
+                              {copy.peek.openAsPanel}
+                            </ChromeButton>
+                          )}
                           {cameFrom === undefined ? null : (
                             <ChromeButton
                               role="ghost"
@@ -220,6 +298,7 @@ export function Composer({
                       registry={registry}
                       store={workspace}
                       api={api}
+                      phone={phone}
                     />
                   )}
                 </>
@@ -227,6 +306,14 @@ export function Composer({
             }
           />
         )}
+
+        {phone && state.page !== null && state.panels.length > 0 ? (
+          <PhoneDock
+            panels={state.panels}
+            titleOf={api.titleOf}
+            onBring={workspace.expandPanel}
+          />
+        ) : null}
 
         <Confirm
           open={asking !== null}

@@ -34,6 +34,7 @@ export type ComposerCopy = {
     back: (to: string) => string;
   };
   modal: { close: string };
+  phone: { alsoOpen: string };
   discard: {
     title: string;
     detail: (names: readonly string[]) => string;
@@ -83,6 +84,7 @@ export const ENGLISH_COMPOSER_COPY: ComposerCopy = {
     back: (to) => `Back to ${to}`,
   },
   modal: { close: "Close" },
+  phone: { alsoOpen: "Also open" },
   discard: {
     title: "Discard the changes?",
     detail: (names) => `What was typed in ${names.join(", ")} has not been saved.`,
@@ -145,6 +147,7 @@ export const SPANISH_COMPOSER_COPY: ComposerCopy = {
     back: (to) => `Volver a ${to}`,
   },
   modal: { close: "Cerrar" },
+  phone: { alsoOpen: "También abiertos" },
   discard: {
     title: "¿Descartar los cambios?",
     detail: (names) => `Lo escrito en ${names.join(", ")} no se guardó.`,

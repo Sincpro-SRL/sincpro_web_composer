@@ -296,6 +296,35 @@ test("a modal with unsaved changes asks before it goes", () => {
   assert.equal(store.get().modals.length, 1);
 });
 
+test("`pick` and `open` take the size of the window or the modal", () => {
+  const { store, page } = setup();
+  page.pick(PAG, () => undefined, { size: { w: 760, h: 540 } });
+  const placed = store.get().panels[0]!.placement;
+  assert.ok(placed.zone === Zone.Floating);
+  assert.deepEqual([placed.w, placed.h], [760, 540]);
+
+  page.open(APUNTE, { to: Destination.Modal, size: { w: 600, h: 300 } });
+  assert.deepEqual(store.get().modals[0]!.size, { w: 600, h: 300 });
+});
+
+test("on a phone a window opens as the page, and a chooser as a modal over the form", () => {
+  const store = createWorkspaceStore({ initial: push(EMPTY, ASIENTOS) });
+  const factory = createApiFactory(store, { registry: REGISTRY, isPhone: () => true });
+  const page = factory.for(ASIENTOS, { surface: Surface.Page });
+
+  page.open(FAC, { to: Destination.Window });
+  assert.equal(store.get().panels.length, 0, "no window on a phone");
+  assert.equal(store.get().page?.id, "FAC-12");
+  assert.equal(store.get().trail.length, 1, "with a crumb to come back");
+
+  let got = "";
+  factory.for(FAC, { surface: Surface.Page }).pick(PAG, (v) => (got = v.id ?? ""));
+  assert.equal(store.get().page?.id, "FAC-12", "the form stays where it is");
+  assert.equal(store.get().modals.length, 1);
+  factory.for(PAG, { surface: Surface.Modal, host: PAGE }).answer(APUNTE);
+  assert.equal(got, "A-1");
+});
+
 test("a view reads the context and publishes its selection", () => {
   const { store, factory, page } = setup();
   page.open(FAC, { to: Destination.Window });

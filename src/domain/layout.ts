@@ -205,6 +205,16 @@ export function layout(w: Workspace): readonly Slot[] {
   );
 }
 
+/** On a phone the page takes the whole workspace and every panel waits, mounted and hidden, to be
+ *  brought to the page (see `phone.ts`). Hidden, not dropped: what was typed in it survives. */
+export function phoneLayout(slots: readonly Slot[]): readonly Slot[] {
+  return slots.map((slot) =>
+    slot.id === PAGE
+      ? { ...slot, box: FULL, floating: false, visible: true, collapsed: false, rail: false }
+      : { ...slot, visible: false },
+  );
+}
+
 /** Sorted by id so sibling order does not change when a panel changes zone — reordering
  *  siblings is what unmounts. */
 export function stableOrder(slots: readonly Slot[]): readonly Slot[] {

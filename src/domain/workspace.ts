@@ -60,7 +60,12 @@ export type Modal = {
   view: ResourceRef;
   /** Blur what it covers. Off unless asked: the host is blocked, not hidden. */
   blur: boolean;
+  /** The size its view asked for; without it, the modal's own. */
+  size?: Size;
 };
+
+/** A size a view asks for, in pixels. What does not fit is shrunk to what there is. */
+export type Size = { w: number; h: number };
 
 /** What a selection belongs to, and the references selected. */
 export type Selected = { by: string; refs: readonly ResourceRef[] };
@@ -112,6 +117,8 @@ export const MAX_ZONE = 0.72;
 export const MIN_SHARE = 0.12;
 
 const WINDOW_BOX = { x: 72, y: 56, w: 480, h: 360 };
+/** Below this a window's controls overlap; a size asked for is never smaller. */
+export const MIN_WINDOW: Size = { w: 280, h: 160 };
 const WINDOW_OFFSET = 28;
 
 export const EMPTY: Workspace = {
@@ -193,7 +200,7 @@ function topZ(panels: readonly Panel[]): number {
   );
 }
 
-function placementFor(zone: Zone, panels: readonly Panel[]): Placement {
+function placementFor(zone: Zone, panels: readonly Panel[], size?: Size): Placement {
   if (zone !== Zone.Floating) return { zone, share: 1 };
 
   const floating = panels.filter((p) => p.placement.zone === Zone.Floating).length;
@@ -201,8 +208,8 @@ function placementFor(zone: Zone, panels: readonly Panel[]): Placement {
     zone,
     x: WINDOW_BOX.x + floating * WINDOW_OFFSET,
     y: WINDOW_BOX.y + floating * WINDOW_OFFSET,
-    w: WINDOW_BOX.w,
-    h: WINDOW_BOX.h,
+    w: Math.max(MIN_WINDOW.w, size?.w ?? WINDOW_BOX.w),
+    h: Math.max(MIN_WINDOW.h, size?.h ?? WINDOW_BOX.h),
     z: topZ(panels) + 1,
   };
 }
@@ -276,6 +283,8 @@ export type OpenPanelOptions = {
   /** Deduplicating is the right default for a column and the wrong one for «the same table
    *  with two filters». */
   allowDuplicate?: boolean;
+  /** A window only: the size it opens at — and the size an open one takes when asked again. */
+  size?: Size;
 };
 
 /** Opens a resource as a panel. If it is already open it moves it to the requested zone and
@@ -290,11 +299,21 @@ export function openPanel(
 
   if (opts.allowDuplicate !== true) {
     const existing = w.panels.find((p) => sameRef(p.view, view));
-    if (existing) return focusPanel(movePanel(w, existing.id, zone), existing.id);
+    if (existing) {
+      const moved = movePanel(w, existing.id, zone);
+      const sized =
+        opts.size === undefined || zone !== Zone.Floating
+          ? moved
+          : floatPanel(moved, existing.id, {
+              w: Math.max(MIN_WINDOW.w, opts.size.w),
+              h: Math.max(MIN_WINDOW.h, opts.size.h),
+            });
+      return focusPanel(sized, existing.id);
+    }
   }
 
   const id = nextId(w.panels.map((p) => p.id));
-  const panel: Panel = { id, view, placement: placementFor(zone, w.panels) };
+  const panel: Panel = { id, view, placement: placementFor(zone, w.panels, opts.size) };
   return focusPanel({ ...w, panels: normalizeAll([...w.panels, panel]) }, id);
 }
 
@@ -496,7 +515,7 @@ export function peekToSide(w: Workspace, zone: Zone = Zone.Right): Workspace {
 
 /* ── Modals ─────────────────────────────────────────────────────────── */
 
-export type OpenModalOptions = { blur?: boolean };
+export type OpenModalOptions = { blur?: boolean; size?: Size };
 
 /**
  * `view` over `host`, which keeps its place and its state underneath. Asked from inside a
@@ -507,7 +526,7 @@ export function openModal(
   w: Workspace,
   host: string,
   view: ResourceRef,
-  { blur = false }: OpenModalOptions = {},
+  { blur = false, size }: OpenModalOptions = {},
 ): Workspace {
   const under = hostOf(host);
   const over = refOn(w, under);
@@ -515,12 +534,18 @@ export function openModal(
 
   const id = modalId(under);
   const current = modalOver(w, under);
-  if (current !== null && sameRef(current.view, view) && current.blur === blur)
+  if (
+    current !== null &&
+    sameRef(current.view, view) &&
+    current.blur === blur &&
+    current.size?.w === size?.w &&
+    current.size?.h === size?.h
+  )
     return focusPanel(w, id);
 
   const modals = [
     ...w.modals.filter((m) => m.host !== under && modalOver(w, m.host) !== null),
-    { host: under, over, view, blur },
+    { host: under, over, view, blur, ...(size === undefined ? {} : { size }) },
   ];
   return { ...w, modals, focus: id, selected: dropSelection(w, id) };
 }

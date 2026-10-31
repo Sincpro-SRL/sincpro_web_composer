@@ -7,8 +7,10 @@ import {
   KEYBOARD_STEP,
   layout,
   type Length,
+  MIN_WINDOW,
   modalOver,
   PAGE,
+  phoneLayout,
   type Registry,
   sizeAt,
   type Slot,
@@ -52,11 +54,11 @@ export type PanelHostProps = {
   registry: Registry;
   store: WorkspaceStore;
   api: ApiFactory;
+  /** One screen: the page takes it all, the panels wait hidden, nothing resizes or docks. */
+  phone?: boolean;
 };
 
 const HANDLE_THICKNESS = 9;
-/** A window never gets smaller than this: below it the controls overlap. */
-const MIN_WINDOW = { w: 280, h: 160 };
 /** How much of a window must stay inside the host, so it can always be grabbed back. */
 const KEEP_VISIBLE = 80;
 
@@ -238,14 +240,21 @@ const DROP_ZONES = [
   },
 ] as const;
 
-export function PanelHost({ workspace, overlay, registry, store, api }: PanelHostProps) {
+export function PanelHost({
+  workspace,
+  overlay,
+  registry,
+  store,
+  api,
+  phone = false,
+}: PanelHostProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const drag = useDrag(hostRef);
   const dropArmed = usePanelDragArmed();
   const copy = composerCopy().panel;
 
-  const slots = layout(workspace);
-  const resizeHandles = handles(workspace);
+  const slots = phone ? phoneLayout(layout(workspace)) : layout(workspace);
+  const resizeHandles = phone ? [] : handles(workspace);
 
   const valueOf = (handle: Handle): number => {
     if (handle.kind === HandleKind.Zone) return workspace.zones[handle.zone];
@@ -337,6 +346,7 @@ export function PanelHost({ workspace, overlay, registry, store, api }: PanelHos
                   registry={registry}
                   store={store}
                   api={api}
+                  phone={phone}
                   style={boxStyle(slot.box)}
                 />
               )}
@@ -409,7 +419,7 @@ export function PanelHost({ workspace, overlay, registry, store, api }: PanelHos
         </div>
       )}
 
-      <div className="sc-drops">
+      <div hidden={phone} className="sc-drops">
         {DROP_ZONES.map((b) => (
           <ZoneDropTarget
             key={b.zone}

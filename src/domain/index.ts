@@ -17,6 +17,7 @@ export {
   KEYBOARD_STEP,
   layout,
   type Length,
+  phoneLayout,
   resolve,
   sizeAt,
   type Slot,
@@ -32,6 +33,11 @@ export {
   PaletteSection,
   searchEntries,
 } from "@sincpro/web-composer/domain/palette";
+export {
+  chooserOnPhone,
+  destinationOnPhone,
+  PHONE_WIDTH,
+} from "@sincpro/web-composer/domain/phone";
 export {
   type Action,
   createRegistry,
@@ -80,6 +86,7 @@ export {
   MAX_ZONE,
   maximize,
   MIN_SHARE,
+  MIN_WINDOW,
   MIN_ZONE,
   MODAL,
   type Modal,
@@ -114,6 +121,7 @@ export {
   type Selected,
   selectionOf,
   settleModals,
+  type Size,
   start,
   type WindowBox,
   type Workspace,
