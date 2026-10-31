@@ -80,3 +80,22 @@ export const FormularioSucioPregunta: Story = {
     ).toBeVisible();
   },
 };
+
+/** Un alta no tiene nombre hasta que se llena: con el contacto elegido, la miga que dibuja el
+ *  propio formulario dice a quién es la factura, en vez de «Factura nueva». */
+export const ElNombreLlegaALaMiga: Story = {
+  render: () => <Demo initial={facturaDesdeLaLista()} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const here = () => canvasElement.querySelector('[data-page] [aria-current="page"]');
+    await waitFor(() => expect(here()).toHaveTextContent("Factura nueva"));
+
+    const field = await canvas.findByRole("combobox", { name: "Contacto" });
+    await userEvent.click(field);
+    await userEvent.type(field, "glob");
+    await userEvent.click(await canvas.findByRole("option", { name: /Globex/ }));
+
+    await waitFor(() => expect(here()).toHaveTextContent("Factura a Globex Bolivia"));
+    await expect(canvas.getByRole("link", { name: "Asientos" })).toBeVisible();
+  },
+};

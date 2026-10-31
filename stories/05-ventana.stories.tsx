@@ -1,7 +1,9 @@
+import { openPanel, Zone } from "@sincpro/web-composer/domain/index";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fireEvent, userEvent, within } from "storybook/test";
 
-import { auditoria, Demo, soloLaLista } from "./contabilidad/demo";
+import { auditoria, Demo, libroDeApuntes, soloLaLista } from "./contabilidad/demo";
+import { ASIENTOS } from "./contabilidad/vistas";
 
 const meta: Meta = {
   title: "Casos de uso/05 · Ventana libre",
@@ -93,5 +95,33 @@ export const MinimizarDejaUnRiel: Story = {
 
     await userEvent.click(within(frame).getByRole("button", { name: "Restaurar" }));
     await expect(Math.round(slot.getBoundingClientRect().width)).toBe(Math.round(before));
+  },
+};
+
+/** Una lista también vive en una ventana, y sus filas responden igual que en la página: un clic en
+ *  la fila la mira en un vistazo, un clic en el nombre la abre como página. La ventana sigue
+ *  con sus filas. */
+export const UnaListaEnUnaVentana: Story = {
+  render: () => <Demo initial={openPanel(libroDeApuntes(), ASIENTOS, Zone.Floating)} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const frame = await canvas.findByRole("region", { name: /^Asientos/ });
+
+    await userEvent.click(
+      await within(frame).findByText(/^factura · Acme S\.R\.L\. · 2026-10-02/),
+    );
+    const drawer = within(await canvas.findByRole("complementary"));
+    await expect(
+      (await drawer.findAllByRole("heading", { name: "FAC-2026-0012" }))[0],
+    ).toBeVisible();
+
+    await userEvent.click(within(frame).getByRole("button", { name: "FAC-2026-0013" }));
+    const page = within(canvasElement.querySelector<HTMLElement>("[data-page]")!);
+    await expect(
+      (await page.findAllByRole("heading", { name: "FAC-2026-0013" }))[0],
+    ).toBeVisible();
+    await expect(
+      within(frame).getAllByRole("button", { name: /^FAC-/ }).length,
+    ).toBeGreaterThan(1);
   },
 };

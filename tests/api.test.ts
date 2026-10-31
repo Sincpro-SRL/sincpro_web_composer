@@ -305,6 +305,26 @@ test("a name given by a view shows in the crumbs, and a late one is ignored", ()
   assert.equal(store.get().titles["contabilidad:asiento/PAG-7"], undefined);
 });
 
+test("the breadcrumb is the same array until it changes, so `useCrumbs` can follow it", () => {
+  const { store, factory, page } = setup();
+  page.open(NUEVO);
+  const form = factory.for(NUEVO, { surface: Surface.Page });
+  const before = form.crumbs();
+  assert.equal(form.crumbs(), before, "nothing changed: the same array");
+
+  store.openPanel(FAC, Zone.Right);
+  assert.equal(form.crumbs(), before, "a panel opened beside it is not a new breadcrumb");
+  const panel = factory.for(FAC, { surface: Surface.Panel, panelId: store.get().focus });
+  assert.equal(panel.crumbs(), panel.crumbs(), "a panel's empty breadcrumb too");
+
+  form.setTitle("Factura a Globex");
+  assert.deepEqual(
+    form.crumbs().map((c) => c.label),
+    ["Asientos", "Factura a Globex"],
+  );
+  assert.notEqual(form.crumbs(), before);
+});
+
 test("`close` on the page goes back: «Cancel» is one call wherever the form is", () => {
   const { store, factory, page } = setup();
   page.open(NUEVO);

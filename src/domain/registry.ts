@@ -60,6 +60,9 @@ export type WorkspaceApi = {
    * The way here, ready for `List.Crumbs` / `Record.Crumbs`: the pages before, each a link, and
    * this one. In the peek the page's crumbs leave the drawer and its own steps stay in it. Empty
    * in a panel: its frame already says what it shows.
+   *
+   * What it is NOW, and the same array until it changes. A view draws it with `useCrumbs(api)`,
+   * which follows it: read during render, a name given later (`setTitle`) would not show.
    */
   crumbs: () => readonly Crumb[];
   /** The name this resource goes by once loaded — the crumbs, the frame and the peek show it

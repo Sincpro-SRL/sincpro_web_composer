@@ -93,7 +93,7 @@ api.open(ref); // the page — inside the peek, a step IN the drawer
 api.open(ref, { to: "peek" }); // or "window", or "side"
 api.replace(ref); // show it HERE without a step back: the record a form just created
 api.setParams({ tenant }); // a filter that lives in the reference: survives reload and links
-api.crumbs(); // the breadcrumb, ready for List.Crumbs / Record.Crumbs
+useCrumbs(api); // the breadcrumb, ready for List.Crumbs / Record.Crumbs — follows setTitle
 api.back(); // one step back: the page's breadcrumb, or the peek's own trail
 api.close(); // leave: closes the panel or the peek; on the page, goes back — «Cancel» anywhere
 api.expand(); // a window, a side panel or the peek grows into the page
@@ -164,14 +164,15 @@ Write a view — it receives its reference and the API, nothing else. It is draw
 your app uses; here, web-ui:
 
 ```tsx
-import { RecordLink, type ViewProps } from "@sincpro/web-composer";
+import { RecordLink, useCrumbs, type ViewProps } from "@sincpro/web-composer";
 import { List } from "@sincpro/web-ui";
 
 export function Entries({ api }: ViewProps) {
+  const crumbs = useCrumbs(api);
   return (
     <List items={entries} keyOf={(e) => e.id} onOpen={(e) => api.open(entryRef(e.id))}>
       <List.Bar>
-        <List.Crumbs crumbs={api.crumbs()} />
+        <List.Crumbs crumbs={crumbs} />
       </List.Bar>
       <List.Table
         columns={[

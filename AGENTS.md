@@ -39,6 +39,8 @@ behaviour arrives with its story; a rule of the model, also with a test in `test
 - The API object is rebuilt when a surface's resource changes; a late call from the old one
   (`setTitle`, `setDirty`) is ignored on purpose.
 - `setDirty(false)` BEFORE leaving after a save, or the workspace asks.
+- A view draws its breadcrumb with `useCrumbs(api)`, not `api.crumbs()` in render: nothing
+  redraws a view when a title changes, so a name given later (`setTitle`) would not show.
 - Lengths are fraction + pixels (`Length`); resolve them against the host size, never assume %.
 - Use the current React (19) and its features (`<style href precedence>`, `useSyncExternalStore`).
 - Never `git commit`: changes are prepared and staged; the commit is the user's.

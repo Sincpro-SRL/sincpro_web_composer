@@ -77,6 +77,7 @@ export {
   type UseKeyboardOptions,
 } from "@sincpro/web-composer/state/useKeyboard";
 export {
+  useCrumbs,
   useWorkspace,
   useWorkspaceContext,
   useWorkspaceSlice,
