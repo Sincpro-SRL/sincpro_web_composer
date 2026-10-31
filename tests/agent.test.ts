@@ -4,6 +4,7 @@ import {
   createApiFactory,
   createWorkspaceStore,
   registerAgentTool,
+  registerAgentTools,
   toolName,
   workspaceTools,
 } from "@sincpro/web-composer";
@@ -114,7 +115,7 @@ test("the workspace as tools: where, open, search and act go through the same wo
       else store.push(ref);
     },
     run: (action) => action.run(api.for(store.get().page!, { surface: Surface.Page })),
-  }).forEach(registerAgentTool);
+  }).forEach((tool) => registerAgentTool(tool));
 
   const tool = (name: string) => registered.find((r) => r.tool["name"] === name)!;
   assert.deepEqual(
@@ -144,6 +145,70 @@ test("the workspace as tools: where, open, search and act go through the same wo
     [{ id: "post", label: "Publicar" }],
     "the focused record's actions",
   );
-  assert.equal(await run(tool("workspace.act"), { action: "post" }), "Done: Publicar.");
-  await assert.rejects(run(tool("workspace.act"), { action: "nope" }), /no action/);
+  const FAC_TEXT = "contabilidad:asiento/FAC-12";
+  assert.equal(
+    await run(tool("workspace.act"), { ref: FAC_TEXT, action: "post" }),
+    "Done: Publicar on Asiento FAC-12.",
+  );
+  await assert.rejects(
+    run(tool("workspace.act"), { ref: FAC_TEXT, action: "nope" }),
+    /no action/,
+  );
+
+  store.focusPanel("page");
+  assert.equal(
+    await run(tool("workspace.act"), { ref: FAC_TEXT, action: "post" }),
+    "Done: Publicar on Asiento FAC-12.",
+    "bound to the record named, wherever the focus moved",
+  );
+  assert.equal(store.get().focus, store.get().panels[0]!.id, "and the focus goes to it");
+  await assert.rejects(
+    run(tool("workspace.act"), { ref: "contabilidad:asiento/PAG-7", action: "post" }),
+    /is not open/,
+  );
+});
+
+test("opening reports what happened: refused by the person, it is not «opened»", async () => {
+  const registered = installModelContext();
+  const store = createWorkspaceStore({
+    initial: push(EMPTY, ASIENTOS),
+    confirmDiscard: () => false,
+  });
+  const api = createApiFactory(store, { registry: REGISTRY });
+  api.for(ASIENTOS, { surface: Surface.Page }).setDirty(true);
+  workspaceTools({
+    store,
+    registry: REGISTRY,
+    titleOf: api.titleOf,
+    open: (ref) => store.push(ref),
+    run: () => undefined,
+  }).forEach((tool) => registerAgentTool(tool));
+
+  const open = registered.find((r) => r.tool["name"] === "workspace.open")!;
+  const answer = await run(open, { ref: "contabilidad:asiento/FAC-12" });
+  assert.match(String(answer), /^Not opened yet/);
+  assert.equal(store.get().page?.kind, "asientos");
+});
+
+test("the workspace's tools go all or none: one refused takes the others back", async () => {
+  const signals: AbortSignal[] = [];
+  (globalThis as { document?: unknown }).document = {
+    modelContext: {
+      registerTool: async (tool: { name: string }, options?: { signal?: AbortSignal }) => {
+        signals.push(options!.signal!);
+        if (tool.name === "b") throw new Error("taken");
+      },
+    },
+  };
+  const tool = (name: string) => ({ name, description: name, execute: () => name });
+  const warn = console.warn;
+  console.warn = () => undefined;
+  registerAgentTools([tool("a"), tool("b"), tool("c")]);
+  await new Promise((r) => setTimeout(r, 0));
+  console.warn = warn;
+
+  assert.deepEqual(
+    signals.map((s) => s.aborted),
+    [true, true, true],
+  );
 });

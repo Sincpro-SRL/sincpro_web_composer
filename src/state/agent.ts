@@ -3,12 +3,18 @@ import {
   Destination,
   focusedRef,
   formatRef,
+  modalId,
+  PAGE,
   parseRef,
+  PEEK,
+  refOn,
   type Registry,
   type ResourceRef,
   rootRef,
+  sameRef,
   searchEntries,
   selectionOf,
+  type Workspace,
   type WorkspaceApi,
 } from "@sincpro/web-composer/domain/index";
 import type { WorkspaceStore } from "@sincpro/web-composer/state/store";
@@ -76,14 +82,19 @@ export const toolName = (text: string): string =>
 const NO_INPUT = { type: "object", properties: {} };
 
 /** Offers `tool` until the returned function is called. Without WebMCP, or refused (a name
- *  already taken), it does nothing and says why in the console. */
-export function registerAgentTool(tool: AgentTool): () => void {
+ *  already taken), it does nothing, says why in the console and calls `onRefused`. */
+export function registerAgentTool(
+  tool: AgentTool,
+  onRefused?: (error: unknown) => void,
+): () => void {
   const context = modelContext();
   if (context === null) return () => undefined;
 
   const controller = new AbortController();
-  const warn = (error: unknown) =>
+  const warn = (error: unknown) => {
     console.warn(`[composer] the agent tool «${tool.name}» was not registered`, error);
+    onRefused?.(error);
+  };
   try {
     const done = context.registerTool(
       {
@@ -110,6 +121,21 @@ export function registerAgentTool(tool: AgentTool): () => void {
       /* Already gone: what was asked. */
     }
   };
+}
+
+/**
+ * Offers a SET of tools that only make sense together — the workspace's — all or none: if the
+ * browser refuses one, the others are taken back, so the agent never sees half a surface.
+ */
+export function registerAgentTools(tools: readonly AgentTool[]): () => void {
+  let stops: (() => void)[] = [];
+  const stopAll = () => {
+    const now = stops;
+    stops = [];
+    for (const stop of now) stop();
+  };
+  stops = tools.map((tool) => registerAgentTool(tool, stopAll));
+  return stopAll;
 }
 
 /**
@@ -160,6 +186,25 @@ export type WorkspaceToolsOptions = {
 };
 
 const OPEN_TO = [Destination.Page, Destination.Peek, Destination.Side, Destination.Window];
+
+/** Where `ref` is on screen — the focused surface first — or `null` if it is not open. */
+function surfaceShowing(w: Workspace, ref: ResourceRef): string | null {
+  const ids = [
+    w.focus,
+    PAGE,
+    PEEK,
+    ...w.panels.map((p) => p.id),
+    ...w.modals.map((m) => modalId(m.host)),
+  ];
+  const found = ids.find((id) => {
+    const shown = refOn(w, id);
+    return shown !== null && sameRef(rootRef(shown), rootRef(ref));
+  });
+  return found ?? null;
+}
+
+const parse = (value: unknown): ResourceRef | null =>
+  typeof value === "string" ? parseRef(value) : null;
 
 /** The workspace as tools: where am I, open, search, act. Registered by `<Composer agentTools>`. */
 export function workspaceTools({
@@ -215,12 +260,19 @@ export function workspaceTools({
         required: ["ref"],
       },
       execute: (input) => {
-        const ref = typeof input["ref"] === "string" ? parseRef(input["ref"]) : null;
+        const ref = parse(input["ref"]);
         if (ref === null || registry.resolve(ref) === null)
           throw new Error(`No screen answers «${String(input["ref"])}».`);
         const asked = input["to"];
         const to = OPEN_TO.find((d) => d === asked) ?? Destination.Page;
         open(ref, to);
+        /* Success only if the workspace shows it now: opening may throw away something unsaved,
+           and then the PERSON is asked first — and may say no. */
+        if (surfaceShowing(store.get(), ref) === null)
+          return (
+            "Not opened yet: it would discard unsaved changes, so the person was asked first. " +
+            "Check workspace.where once they answer."
+          );
         return `Opened ${titleOf(ref)} (${to}).`;
       },
     },
@@ -256,22 +308,35 @@ export function workspaceTools({
       name: "workspace.act",
       title: "Do an action",
       description:
-        "Run one of the actions the focused record offers (the ids are in workspace.where), " +
-        "the same ones the command palette offers to a person.",
+        "Run one of the actions a record offers — the same ones the command palette offers to " +
+        "a person. Name the record it acts on (`ref`, as workspace.where gives it) and the " +
+        "action (`action`, an id from workspace.where's `actions` for that record).",
       inputSchema: {
         type: "object",
-        properties: { action: { type: "string" } },
-        required: ["action"],
+        properties: {
+          ref: { type: "string", description: "The record it acts on: domain:kind/id" },
+          action: { type: "string" },
+        },
+        required: ["ref", "action"],
       },
       annotations: { consequentialHint: true },
       execute: (input) => {
-        const action = actionsHere().find((a) => a.id === input["action"]);
-        if (action === undefined)
+        /* Bound to the record named, not to whatever has the focus NOW: the focus may have
+           moved since the agent looked, and an action on the wrong record is not undone. */
+        const ref = parse(input["ref"]);
+        const where = ref === null ? null : surfaceShowing(store.get(), ref);
+        if (ref === null || where === null)
           throw new Error(
-            `The focused record offers no action «${String(input["action"])}».`,
+            `«${String(input["ref"])}» is not open. Open it with workspace.open first.`,
           );
+        const action = (registry.resolve(ref)?.actions?.(ref) ?? []).find(
+          (a) => a.id === input["action"],
+        );
+        if (action === undefined)
+          throw new Error(`${titleOf(ref)} offers no action «${String(input["action"])}».`);
+        store.focusPanel(where);
         run(action);
-        return `Done: ${action.label}.`;
+        return `Done: ${action.label} on ${titleOf(ref)}.`;
       },
     },
   ];

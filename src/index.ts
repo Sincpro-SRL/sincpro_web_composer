@@ -72,6 +72,7 @@ export {
   type AgentTool,
   type AgentToolAnnotations,
   registerAgentTool,
+  registerAgentTools,
   toolName,
   useViewTool,
   workspaceTools,

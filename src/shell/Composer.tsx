@@ -23,7 +23,7 @@ import {
 } from "@sincpro/web-composer/shell/skin";
 import { ComposerStyles } from "@sincpro/web-composer/shell/styles";
 import { ViewHost } from "@sincpro/web-composer/shell/ViewHost";
-import { registerAgentTool, workspaceTools } from "@sincpro/web-composer/state/agent";
+import { registerAgentTools, workspaceTools } from "@sincpro/web-composer/state/agent";
 import { createApiFactory, targetOf } from "@sincpro/web-composer/state/api";
 import { useDropMonitor } from "@sincpro/web-composer/state/drag";
 import type { WorkspaceStore } from "@sincpro/web-composer/state/store";
@@ -237,16 +237,15 @@ export function Composer({
   });
   useEffect(() => {
     if (!agentTools) return;
-    const stops = workspaceTools({
-      store: workspace,
-      registry,
-      titleOf: api.titleOf,
-      open: (ref, to) => latest.current.open(ref, to),
-      run: (action) => latest.current.run(action),
-    }).map(registerAgentTool);
-    return () => {
-      for (const stop of stops) stop();
-    };
+    return registerAgentTools(
+      workspaceTools({
+        store: workspace,
+        registry,
+        titleOf: api.titleOf,
+        open: (ref, to) => latest.current.open(ref, to),
+        run: (action) => latest.current.run(action),
+      }),
+    );
   }, [agentTools, workspace, registry, api]);
 
   const peeked = state.peek;
