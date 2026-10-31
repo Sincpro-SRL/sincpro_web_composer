@@ -1,107 +1,79 @@
 # @sincpro/web-composer
 
-**How enterprise screens are put together.** A workspace for React where a person opens a
-record, checks another one beside it, peeks at a third, and keeps a fourth floating while they
-work — without losing their place, and without any screen knowing about the others. By
-[Sincpro](https://github.com/Sincpro-SRL), open source.
+**A window manager for enterprise web apps.** A person opens a record, checks another beside
+it, peeks at a third and keeps a fourth floating while they work — without losing their place,
+and without any screen knowing about the others. A rich API for views, standalone: it depends
+on nothing but React. By [Sincpro](https://github.com/Sincpro-SRL), open source.
 
 ```bash
 yarn add @sincpro/web-composer react react-dom
 ```
 
-Requires React 19 or newer and nothing else. The composer draws its windows — frames, the peek
-drawer, the rail, the confirm dialog, ⌘K — with its own minimal skin; the views inside them are
-yours, drawn with whatever you use.
+## Manifesto
 
-### Theming
+### Purpose
 
-Every color, radius and shadow is a CSS variable with a default (light and dark). Set them
-anywhere above the workspace — no stylesheet to import:
+The composer defines **how work between records behaves**: where each thing opens, how you get
+back, what is remembered, and what the others see. One behaviour, reviewed by Sincpro, for
+every application.
 
-```css
-:root {
-  --sc-surface: var(--my-surface);
-  --sc-accent: var(--my-brand);
-  /* --sc-ground --sc-line --sc-line-strong --sc-ink --sc-muted --sc-danger --sc-scrim
-     --sc-shadow --sc-radius --sc-radius-control --sc-text --sc-text-small */
-}
-```
+UI libraries prefer «one screen, one context» because it is clean. But people who work in
+accounting, audit or support spend the day **between** records: the bank statement against the
+invoices, the journal item against its entry, the customer while the order is half filled.
+Without a window manager, every app either navigates away (the list, its filters and its
+selection are gone) or sends people to browser tabs (the context lives in their head) — and
+each app reinvents peeks, breadcrumbs and panels its own way. The composer solves it once.
 
-### Your design over it
+| Who              | The question it answers                                                  |
+| ---------------- | ------------------------------------------------------------------------ |
+| **The composer** | Where each view lives and how it moves: page, peek, side panel, window   |
+| **Your app**     | What a record is and how it looks — drawn with web-ui, or anything else  |
+| **A framework**  | Puts both together (`@sincpro/web-framework` does, over server metadata) |
 
-The composer owns the behaviour; the look is yours, at three levels — take only what you need:
+### Principles — the contract
 
-1. **Colors** — the `--sc-*` variables above.
-2. **Pieces** — `skin` swaps icons and parts one at a time; what you do not pass stays default:
+- **One gesture, one destination.** A click opens the page and the breadcrumb keeps the way
+  back; a peek, a window, a side panel are one gesture away, never forced on anyone. Someone
+  who never opens a panel just sees pages and breadcrumbs.
+- **References, not data.** The workspace stores `domain:kind/id`. A support case points at an
+  invoice and the workspace opens it, while the support code never imports accounting. Views
+  can open things and publish what they selected, but cannot read the workspace.
+- **Never lose the place, nor what was typed.** The breadcrumb, the URL, the browser's Back,
+  asking before discarding. Moving a panel does not remount it; neither does changing only a
+  reference's `params`. The peek belongs to its page: when the page becomes another record, it
+  closes.
+- **Opinionated defaults, open doors.** Good practice comes built in, and everything is
+  replaceable without forks: the look (`--sc-*`, `skin`), the discard question
+  (`confirmDiscard`), where a click goes (`defaultOpen`), any reducer (`apply`).
+- **Standalone.** Only React. The design belongs to whoever uses it; the composer ships a
+  minimal skin so it works alone, and nothing else.
+- **Each domain declares itself.** Register a `ViewSpec` and it works in pages, panels, the
+  peek and ⌘K. Adding a domain changes no file here — the view can be a module another team
+  deploys.
+- **Nothing a person arranges can break it.** A view that throws stays in its own panel; a
+  reference nobody resolves says so; a broken link loads what is valid; sizes are clamped.
+- **Addressable by people and agents.** The place lives in the URL and in references, so the
+  same API (`context`, `open`, `peek`, `select`) serves a person and an AI agent. An MCP or
+  WebMCP adapter fits here — as a separate module, not in the core.
+- **A rule comes with its story.** Every behaviour is a Storybook story with its `play`.
 
-   ```tsx
-   <Composer
-     workspace={workspace}
-     registry={registry}
-     skin={{
-       icons: { close: X, more: Ellipsis }, // any component taking className / strokeWidth
-       Peek: MyDrawer, // ({ title, onClose, actions, children })
-       Confirm: MyConfirm, // ({ open, title, detail, keep, discard, onAnswer })
-       Notice: MyNotice, // ({ heading, detail, bad })
-     }}
-   />
-   ```
+### What it is not
 
-3. **Everything** — `skin={{ styles: false }}` drops the default sheet; style the stable `sc-*`
-   classes from scratch.
+- **Not a component library.** No form controls, tables or lists — that is your app (web-ui).
+- **Not a data layer.** No fetching, permissions, entities or sessions.
+- **Not a router** of URL paths, and not a free dashboard layout.
+- **No tabs, no multiple workspaces.** One page, its trail, and what is around it.
+- **No design system, no icon library** as a dependency.
 
-The story «11 · Tu diseño sobre el composer» plugs web-ui's `Peek` and lucide's icons this way —
-the composer imports neither.
+### How something new gets in
 
-## Why
+All three, or it belongs in another package:
 
-People who work in an ERP spend the day **between records**. An accountant reconciles a bank
-statement against invoices. An auditor walks journal items and checks the entry each one came
-from. Somebody filling an order needs to look at the customer, the stock and last month's
-invoice — now, not after closing the form.
-
-Most business software answers that with one of two bad options:
-
-- **Navigate away.** You open the invoice, and the list you were working on is gone. You come
-  back and the filters, the scroll and the selection are gone too.
-- **Open another browser tab.** Now the context lives in your head: which tab had what, and
-  which one is stale.
-
-Both make people do the remembering. The composer makes the workspace do it.
-
-## The vision
-
-Sincpro builds enterprise interfaces with two packages, and each one owns a different question:
-
-| Package                                                            | The question it answers                                                                                            |
-| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| [`@sincpro/web-ui`](https://github.com/Sincpro-SRL/sincpro_web_ui) | **What a screen looks like** — tokens, primitives, `List` (N records), `Record` (one)                              |
-| `@sincpro/web-composer`                                            | **How screens are put together** — where a record opens, how two of them sit side by side, how one follows another |
-| Your application                                                   | **What a record is** — invoices, payments, journal entries                                                         |
-
-Neither package knows your domain. Together they are how we build business software: web-ui
-draws the screens, the composer arranges them, and the application only declares its records.
-
-### Principles
-
-- **A click does the predictable thing.** Opening a record replaces the page, and the
-  breadcrumb keeps the way back. Everything else — a peek, a window, a side panel — is one
-  gesture away, never forced on anyone. Someone who never opens a panel just sees pages and
-  breadcrumbs.
-- **References, not data.** The workspace stores `domain:kind/id`. A support case can point at
-  an invoice and the workspace opens it, while the support code never imports accounting.
-- **Each domain declares itself.** Register a `ViewSpec` and it works: in pages, panels, the
-  peek and ⌘K. Adding a domain changes no file in this package — and the view can be a module
-  another team deploys.
-- **Nothing a person arranges can break it.** A view that throws stays in its own panel. A
-  reference nobody can resolve says so. A broken link loads what is valid. Sizes are clamped.
-- **Moving is not remounting.** Every surface is a sibling on one layer; only its box changes.
-  A panel moved to another edge keeps its scroll, its filters and what was typed in it — and so
-  does a view whose reference only changes its `params`.
-- **The peek belongs to its page.** When the page becomes another record the drawer closes; a
-  filter or a tab on the same one keeps it.
-- **Views stay apart.** A view can open things and publish what it selected, but it cannot read
-  the workspace — two domains talk through references, never through each other.
+1. It answers **where does it open? how do I get back? what is remembered? what does the other
+   one see** (a panel following the selection, an agent)?
+2. It serves **any domain** the same way — if it only makes sense for accounting, it is the
+   app's.
+3. It comes from **real use** (forge, web-framework) and arrives with its story.
 
 ## The model
 
@@ -188,7 +160,8 @@ export function App() {
 }
 ```
 
-Write a view — it receives its reference and the API, nothing else:
+Write a view — it receives its reference and the API, nothing else. It is drawn with whatever
+your app uses; here, web-ui:
 
 ```tsx
 import { RecordLink, type ViewProps } from "@sincpro/web-composer";
@@ -219,9 +192,52 @@ export function Entries({ api }: ViewProps) {
 }
 ```
 
-The Storybook in this repository is the long version: ten accounting use cases — journal
+The Storybook in this repository is the long version: eleven accounting use cases — journal
 entries, journal items, bank reconciliation, a form with relations, an audit where the detail
-follows the selection, ⌘K, the keyboard, and what happens when something fails.
+follows the selection, ⌘K, the keyboard, what happens when something fails, and your own
+design over the composer.
+
+## Your design over it
+
+### Colors
+
+Every color, radius and shadow is a CSS variable with a default (light and dark). Set them
+anywhere above the workspace — no stylesheet to import:
+
+```css
+:root {
+  --sc-surface: var(--my-surface);
+  --sc-accent: var(--my-brand);
+  /* --sc-ground --sc-line --sc-line-strong --sc-ink --sc-muted --sc-danger --sc-scrim
+     --sc-shadow --sc-radius --sc-radius-control --sc-text --sc-text-small */
+}
+```
+
+### Three levels
+
+The composer owns the behaviour; the look is yours. Take only what you need:
+
+1. **Colors** — the `--sc-*` variables above.
+2. **Pieces** — `skin` swaps icons and parts one at a time; what you do not pass stays default:
+
+   ```tsx
+   <Composer
+     workspace={workspace}
+     registry={registry}
+     skin={{
+       icons: { close: X, more: Ellipsis }, // any component taking className / strokeWidth
+       Peek: MyDrawer, // ({ title, onClose, actions, children })
+       Confirm: MyConfirm, // ({ open, title, detail, keep, discard, onAnswer })
+       Notice: MyNotice, // ({ heading, detail, bad })
+     }}
+   />
+   ```
+
+3. **Everything** — `skin={{ styles: false }}` drops the default sheet; style the stable `sc-*`
+   classes from scratch.
+
+The story «11 · Tu diseño sobre el composer» plugs web-ui's `Peek` and lucide's icons this way —
+the composer imports neither.
 
 ## Development
 
@@ -238,9 +254,9 @@ Every operation — local or CI — goes through the `Makefile`; run `make` to l
 ```text
 src/domain/  the model: pure TypeScript, no browser state, tested in Node
 src/state/   the store and the API views receive
-src/shell/   the React shell, drawn with @sincpro/web-ui
+src/shell/   the React shell, with its own minimal skin (sc-* classes, --sc-* variables)
 tests/       the model's rules, vitest in Node
-stories/     the use cases, over a fake accounting domain in stories/contabilidad/
+stories/     the use cases, over a fake accounting app drawn with web-ui (dev only)
 ```
 
 ## CI/CD
