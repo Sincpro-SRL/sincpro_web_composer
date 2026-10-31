@@ -72,6 +72,12 @@ export const apuntesDeAsiento = (asiento: string): ResourceRef => ({
   ...APUNTES_REF,
   params: { asiento },
 });
+/** Lo que el modal y quien lo abre comparten viaja en la referencia: el asiento a pagar. */
+export const pagoNuevo = (asiento: string): ResourceRef => ({
+  domain: "contabilidad",
+  kind: "pago-nuevo",
+  params: { asiento },
+});
 export const elegir = (de: "contacto" | "cuenta"): ResourceRef => ({
   domain: "contabilidad",
   kind: "elegir",
@@ -428,6 +434,18 @@ export function AsientoView({ resource, api }: ViewProps) {
               >
                 Ver apuntes
               </Button>
+              {/* Un trámite corto sobre ESTE asiento: un modal que bloquea sólo lo que cubre. */}
+              {a.tipo === "factura" && a.estado !== "conciliado" ? (
+                <Button
+                  size="sm"
+                  role="secondary"
+                  onClick={() =>
+                    api.open(pagoNuevo(a.id), { to: Destination.Modal, blur: true })
+                  }
+                >
+                  Registrar pago
+                </Button>
+              ) : null}
             </Record.Actions>
             {/* The stage bar needs the page's width; a window or a peek says it in a word. */}
             {api.surface === Surface.Page ? (
@@ -667,6 +685,53 @@ export function ContactoView({ resource, api }: ViewProps) {
         ))}
       </ul>
     </div>
+  );
+}
+
+/**
+ * Registrar el pago de una factura, en un MODAL sobre ella. Lo que necesita lo recibe por dos
+ * lados: la referencia trae el asiento (`params`, lo compartido) y `api.over` dice sobre qué
+ * está abierto (su contexto). No guarda nada: es el ejemplo de la forma, no de la contabilidad.
+ */
+export function PagoNuevo({ resource, api }: ViewProps) {
+  const all = useAsientos();
+  const a = asientoById(all, resource.params?.["asiento"]);
+  const [monto, setMonto] = useState("");
+  useEffect(() => api.setDirty(monto !== ""), [api, monto]);
+
+  if (a === undefined)
+    return <p className="p-4 text-meta text-muted">No existe el asiento.</p>;
+  return (
+    <form
+      className="flex flex-col gap-3 p-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        api.setDirty(false);
+        api.close();
+      }}
+    >
+      <p className="text-meta text-muted">
+        Sobre {api.over === null ? "—" : api.over.id} · {contactoNombre(a.contacto)} · saldo{" "}
+        {money(a.total)}
+      </p>
+      <label className="flex flex-col gap-1 text-meta text-ink">
+        Monto
+        <input
+          value={monto}
+          inputMode="decimal"
+          onChange={(e) => setMonto(e.target.value)}
+          className="h-(--size-control-md) rounded-control border border-line-strong bg-surface px-2 text-meta text-ink"
+        />
+      </label>
+      <div className="flex justify-end gap-2">
+        <Button size="sm" role="ghost" onClick={api.close}>
+          Cancelar
+        </Button>
+        <Button size="sm" role="primary" type="submit">
+          Registrar
+        </Button>
+      </div>
+    </form>
   );
 }
 

@@ -9,7 +9,8 @@ import { includes } from "./datos";
  *
  *   type      what matches is proposed; picking fills the field
  *   «open»    the chosen record in a WINDOW (⇧ click: beside the form), without leaving the form
- *   «search»  a list in a window that ANSWERS the field — `api.pick` and `api.answer`
+ *   «search»  a list in a MODAL over the form that ANSWERS the field — `api.pick` and
+ *             `api.answer`. It blocks the form only: wherever the form is, the rest answers.
  */
 export function Many2One({
   api,
@@ -69,7 +70,9 @@ export function Many2One({
       <button
         type="button"
         aria-label={`Buscar ${label}`}
-        onClick={() => api.pick(chooserOf, (ref) => onChange(ref.id ?? ""))}
+        onClick={() =>
+          api.pick(chooserOf, (ref) => onChange(ref.id ?? ""), { to: Destination.Modal })
+        }
         className="inline-flex size-8 cursor-pointer items-center justify-center rounded-control text-muted hover:bg-ink/8"
       >
         <Search className="size-(--size-icon-sm)" aria-hidden />

@@ -30,6 +30,8 @@ export const Destination = {
   Peek: "peek",
   Window: "window",
   Side: "side",
+  /** Over the surface that asked, blocking only it: a question, a chooser, a short form. */
+  Modal: "modal",
 } as const;
 
 export type Destination = (typeof Destination)[keyof typeof Destination];
@@ -40,6 +42,7 @@ export const Surface = {
   Page: "page",
   Panel: "panel",
   Peek: "peek",
+  Modal: "modal",
 } as const;
 
 export type Surface = (typeof Surface)[keyof typeof Surface];

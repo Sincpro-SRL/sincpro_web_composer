@@ -2,7 +2,7 @@ import {
   type Action,
   Destination,
   focusedRef,
-  PAGE,
+  modalOver,
   PEEK,
   type Registry,
   type ResourceRef,
@@ -10,6 +10,7 @@ import {
   Zone,
 } from "@sincpro/web-composer/domain/index";
 import { composerCopy } from "@sincpro/web-composer/shell/copy";
+import { ModalLayer } from "@sincpro/web-composer/shell/Modal";
 import { WorkspacePalette } from "@sincpro/web-composer/shell/Palette";
 import { PanelHost } from "@sincpro/web-composer/shell/PanelHost";
 import { ChromeButton, ConfirmDialog, PeekDrawer } from "@sincpro/web-composer/shell/Peek";
@@ -20,7 +21,7 @@ import {
 } from "@sincpro/web-composer/shell/skin";
 import { ComposerStyles } from "@sincpro/web-composer/shell/styles";
 import { ViewHost } from "@sincpro/web-composer/shell/ViewHost";
-import { createApiFactory } from "@sincpro/web-composer/state/api";
+import { createApiFactory, targetOf } from "@sincpro/web-composer/state/api";
 import { useDropMonitor } from "@sincpro/web-composer/state/drag";
 import type { WorkspaceStore } from "@sincpro/web-composer/state/store";
 import { useKeyboard } from "@sincpro/web-composer/state/useKeyboard";
@@ -142,24 +143,16 @@ export function Composer({
   }
 
   /** An action runs with the API of the surface its resource is on — the page, the peek I am
-   *  reading or a panel — so «audit» can open beside it or navigate it. */
+   *  reading, a panel or a modal — so «audit» can open beside it or navigate it. */
   function run(action: Action) {
     const w = workspace.get();
     const ref = focusedRef(w);
     if (ref === null) return;
-    action.run(
-      api.for(
-        ref,
-        w.focus === PAGE
-          ? { surface: Surface.Page }
-          : w.focus === PEEK
-            ? { surface: Surface.Peek }
-            : { surface: Surface.Panel, panelId: w.focus },
-      ),
-    );
+    action.run(api.for(ref, targetOf(w.focus)));
   }
 
   const peeked = state.peek;
+  const peekModal = modalOver(state, PEEK);
   const peekSpec = peeked === null ? null : registry.resolve(peeked);
   const cameFrom = state.peekTrail.at(-1);
 
@@ -177,46 +170,59 @@ export function Composer({
             api={api}
             overlay={
               peeked === null ? null : (
-                /* `contents`: no box of its own, so the drawer still lays out against the page;
-                 it only hears the pointer, to hand the shortcuts to what is being read. */
-                <div
-                  style={{ display: "contents" }}
-                  onPointerDownCapture={() => workspace.focusPanel(PEEK)}
-                >
-                  <Drawer
-                    title={api.titleOf(peeked)}
-                    onClose={workspace.closePeek}
-                    actions={
-                      <>
-                        <ChromeButton
-                          onClick={() =>
-                            workspace.peekToSide(peekSpec?.preferredZone ?? Zone.Right)
-                          }
-                        >
-                          {copy.peek.openAsPanel}
-                        </ChromeButton>
-                        {cameFrom === undefined ? null : (
-                          <ChromeButton
-                            role="ghost"
-                            icon={skin.icons.back}
-                            onClick={workspace.peekBack}
-                          >
-                            {copy.peek.back(api.titleOf(cameFrom))}
-                          </ChromeButton>
-                        )}
-                        <ChromeButton role="ghost" onClick={workspace.peekToPage}>
-                          {copy.peek.openAsPage}
-                        </ChromeButton>
-                      </>
-                    }
+                <>
+                  {/* `contents`: no box of its own, so the drawer still lays out against the
+                      page; it only hears the pointer, to hand the shortcuts to what is being
+                      read. A modal over the drawer covers the page it sits on: the drawer has
+                      no frame to hold it. */}
+                  <div
+                    style={{ display: "contents" }}
+                    inert={peekModal !== null}
+                    onPointerDownCapture={() => workspace.focusPanel(PEEK)}
                   >
-                    <ViewHost
-                      resource={peeked}
+                    <Drawer
+                      title={api.titleOf(peeked)}
+                      onClose={workspace.closePeek}
+                      actions={
+                        <>
+                          <ChromeButton
+                            onClick={() =>
+                              workspace.peekToSide(peekSpec?.preferredZone ?? Zone.Right)
+                            }
+                          >
+                            {copy.peek.openAsPanel}
+                          </ChromeButton>
+                          {cameFrom === undefined ? null : (
+                            <ChromeButton
+                              role="ghost"
+                              icon={skin.icons.back}
+                              onClick={workspace.peekBack}
+                            >
+                              {copy.peek.back(api.titleOf(cameFrom))}
+                            </ChromeButton>
+                          )}
+                          <ChromeButton role="ghost" onClick={workspace.peekToPage}>
+                            {copy.peek.openAsPage}
+                          </ChromeButton>
+                        </>
+                      }
+                    >
+                      <ViewHost
+                        resource={peeked}
+                        registry={registry}
+                        api={api.for(peeked, { surface: Surface.Peek })}
+                      />
+                    </Drawer>
+                  </div>
+                  {peekModal === null ? null : (
+                    <ModalLayer
+                      modal={peekModal}
                       registry={registry}
-                      api={api.for(peeked, { surface: Surface.Peek })}
+                      store={workspace}
+                      api={api}
                     />
-                  </Drawer>
-                </div>
+                  )}
+                </>
               )
             }
           />

@@ -25,6 +25,9 @@ import { createContext, useContext } from "react";
  *
  *     <Composer skin={{ icons: { close: X, more: Ellipsis }, Peek: MyDrawer }} … />
  *
+ * An icon passed here is drawn at the composer's size (`--sc-icon`, 14px), whatever size it
+ * draws itself at: a 24px icon library does not inflate the controls.
+ *
  * Three levels, from least to most work: the `--sc-*` variables (colors, radius), these pieces,
  * and `styles: false` to drop the default sheet and style the `sc-*` classes from scratch.
  */
@@ -57,6 +60,21 @@ export type PeekProps = {
   children: ReactNode;
 };
 
+/**
+ * A modal over ONE surface: it covers that surface — the page, a window, a side panel or the
+ * peek — and nothing else, so the rest of the workspace keeps answering. The composer places it
+ * and blocks what is underneath; this draws the scrim and the window. It must take the focus on
+ * open, give it back on close, and close on Escape while the focus is inside — claiming the key
+ * with `preventDefault`. The default one moves by its title.
+ */
+export type ModalProps = {
+  title: string;
+  /** Blur what it covers. Off unless the view that opened it asked. */
+  blur: boolean;
+  onClose: () => void;
+  children: ReactNode;
+};
+
 /** The question before throwing away what was typed. `onAnswer(false)` is the safe answer and
  *  what Escape gives. */
 export type ConfirmProps = {
@@ -75,6 +93,7 @@ export type NoticeProps = { heading: string; detail: string; bad?: boolean };
 export type Skin = {
   icons: SkinIcons;
   Peek: ComponentType<PeekProps> | null;
+  Modal: ComponentType<ModalProps> | null;
   Confirm: ComponentType<ConfirmProps> | null;
   Notice: ComponentType<NoticeProps> | null;
   /** `false` drops the default sheet: the `sc-*` classes are then yours to style. */
@@ -105,6 +124,7 @@ export const DEFAULT_ICONS: SkinIcons = {
 const DEFAULT_SKIN: Skin = {
   icons: DEFAULT_ICONS,
   Peek: null,
+  Modal: null,
   Confirm: null,
   Notice: null,
   styles: true,

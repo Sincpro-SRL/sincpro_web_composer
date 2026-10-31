@@ -9,7 +9,7 @@ const meta: Meta = {
     docs: {
       description: {
         component:
-          "**Many2one:** se elige tipeando; el botón **abrir** muestra el registro en una **ventana** sin salir del formulario (⇧clic: al lado); el botón **buscar** abre una lista que **responde** al campo (`api.pick` / `api.answer`) y se cierra sola. Lo que ya se escribió en el formulario no se pierde mientras tanto.",
+          "**Many2one:** se elige tipeando; el botón **abrir** muestra el registro en una **ventana** sin salir del formulario (⇧clic: al lado); el botón **buscar** abre, en un **modal sobre el formulario**, una lista que **responde** al campo (`api.pick` / `api.answer`) y se cierra sola. Lo que ya se escribió en el formulario no se pierde mientras tanto.",
       },
     },
   },
@@ -39,7 +39,7 @@ export const ElegirAbrirYBuscar: Story = {
     );
     await expect(field).toHaveValue("Initech Ltda.");
     await waitFor(() =>
-      expect(canvas.queryByRole("region", { name: "Elegir contacto" })).toBeNull(),
+      expect(canvas.queryByRole("dialog", { name: "Elegir contacto" })).toBeNull(),
     );
     await expect(canvas.getByLabelText("Notas")).toHaveValue("Servicio de octubre");
   },

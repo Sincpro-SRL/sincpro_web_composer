@@ -41,6 +41,11 @@ export {
 } from "@sincpro/web-composer/shell/copy";
 export { type IconProps } from "@sincpro/web-composer/shell/icons";
 export {
+  ModalLayer,
+  type ModalLayerProps,
+  ModalWindow,
+} from "@sincpro/web-composer/shell/Modal";
+export {
   WorkspacePalette,
   type WorkspacePaletteProps,
 } from "@sincpro/web-composer/shell/Palette";
@@ -55,6 +60,7 @@ export {
   type ComposerSkin,
   type ConfirmProps,
   DEFAULT_ICONS,
+  type ModalProps,
   type NoticeProps,
   type PeekProps,
   type SkinIcons,
@@ -65,6 +71,7 @@ export {
   type ApiFactory,
   createApiFactory,
   type Target,
+  targetOf,
 } from "@sincpro/web-composer/state/api";
 export {
   type ConfirmDiscard,

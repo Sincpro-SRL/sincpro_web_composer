@@ -167,6 +167,9 @@ export type PanelFrameProps = {
   onFocus: () => void;
   /** Pointer down on the title of a window: the host moves it. */
   onMoveStart?: (e: ReactPointerEvent) => void;
+  /** A modal over this panel's view. It blocks the view only: the header still moves, minimizes
+   *  and closes the panel. */
+  modal?: ReactNode;
   children: ReactNode;
 };
 
@@ -182,6 +185,7 @@ function Frame({
   onMaximize,
   onFocus,
   onMoveStart,
+  modal,
   children,
 }: PanelFrameProps) {
   const copy = composerCopy().panel;
@@ -240,8 +244,11 @@ function Frame({
 
       {/* A container here, not in the view: a view asks for the PANEL width, which is the
           only one that matters with four open on a 1600px screen. */}
-      <div hidden={collapsed} className="sc-body">
-        {children}
+      <div hidden={collapsed} className="sc-body-wrap">
+        <div inert={modal !== undefined && modal !== null} className="sc-body">
+          {children}
+        </div>
+        {modal}
       </div>
     </section>
   );

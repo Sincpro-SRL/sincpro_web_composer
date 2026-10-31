@@ -12,11 +12,20 @@ export { Surface } from "@sincpro/web-composer/domain/enums";
 export type OpenOptions = {
   /** Where it opens. Without it, the workspace's default: the page. */
   to?: Destination;
+  /** A modal only: blur what it covers. Off by default — the surface underneath is blocked,
+   *  not hidden. */
+  blur?: boolean;
 };
 
 export type PickOptions = {
   /** Where the chooser opens. A window unless said otherwise. */
-  to?: typeof Destination.Peek | typeof Destination.Window | typeof Destination.Side;
+  to?:
+    | typeof Destination.Peek
+    | typeof Destination.Window
+    | typeof Destination.Side
+    | typeof Destination.Modal;
+  /** A modal only: blur what it covers. */
+  blur?: boolean;
 };
 
 /** One step of a breadcrumb, ready for `List.Crumbs` or `Record.Crumbs`. */
@@ -29,29 +38,38 @@ export type Crumb = { label: string; onClick?: () => void };
 export type WorkspaceApi = {
   self: ResourceRef;
   surface: Surface;
+  /**
+   * In a modal, what it was opened over — the record of the window, panel or page underneath:
+   * its context. `null` on any other surface. Anything else the two share travels in the
+   * modal's reference (`params`) and comes back with `answer`.
+   */
+  over: ResourceRef | null;
 
   /**
    * The one way to open a resource: `open(ref)` goes where the workspace opens by default (the
    * page), `open(ref, { to })` where the caller says. Opening the page from a window leaves the
    * window where it is; from the peek it closes the drawer — it sat over a page that is no longer
    * there. Inside the peek a plain `open(ref)` drills IN the drawer, and ← comes back: reading
-   * does not throw the reader out.
+   * does not throw the reader out. `{ to: "modal" }` opens it over THIS surface, blocking only
+   * it; from inside a modal, it replaces that modal.
    */
   open: (ref: ResourceRef, options?: OpenOptions) => void;
   /** Show `ref` HERE, remembering where it was: a crumb on the page, a step back in the peek. A
-   *  panel has no way back: it just changes. */
+   *  panel or a modal has no way back: it just changes. */
   navigate: (ref: ResourceRef) => void;
   /** Show `ref` HERE without a step to come back to: the record a form just created, a filter. */
   replace: (ref: ResourceRef) => void;
   /** This resource with `params` merged (`""` removes one), in place: filters live in the
    *  reference — they survive a reload, a link and a move to another surface. */
   setParams: (params: Record<string, string>) => void;
-  /** One step back: the page's breadcrumb or the peek's own trail. Nothing in a panel. */
+  /** One step back: the page's breadcrumb or the peek's own trail. Nothing in a panel or a
+   *  modal. */
   back: () => void;
-  /** A window, a side panel or the peek grows into the page. Nothing on the page itself. */
+  /** A window, a side panel or the peek grows into the page. Nothing on the page itself, nor in
+   *  a modal: it is a moment over something, not a place. */
   expand: () => void;
-  /** Leave what this view is in: its panel or the peek closes; the page goes one step back.
-   *  «Cancel» on a form is this one call wherever the form was opened. */
+  /** Leave what this view is in: its panel, the peek or the modal closes; the page goes one
+   *  step back. «Cancel» on a form is this one call wherever the form was opened. */
   close: () => void;
   /** Request workspace focus so shortcuts talk to this view. */
   focus: () => void;
@@ -59,7 +77,7 @@ export type WorkspaceApi = {
   /**
    * The way here, ready for `List.Crumbs` / `Record.Crumbs`: the pages before, each a link, and
    * this one. In the peek the page's crumbs leave the drawer and its own steps stay in it. Empty
-   * in a panel: its frame already says what it shows.
+   * in a panel or a modal: its frame already says what it shows.
    *
    * What it is NOW, and the same array until it changes. A view draws it with `useCrumbs(api)`,
    * which follows it: read during render, a name given later (`setTitle`) would not show.

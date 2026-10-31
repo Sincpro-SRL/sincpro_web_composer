@@ -8,11 +8,13 @@ import {
 import {
   DEFAULT_ZONES,
   EMPTY,
+  hostOf,
   PAGE,
   type Panel,
   PEEK,
   type Placement,
   refOn,
+  settleModals,
   type Workspace,
   type Zones,
 } from "@sincpro/web-composer/domain/workspace";
@@ -101,7 +103,9 @@ export function toHash(w: Workspace): string {
   if (w.panels.length > 0) parts.push(`s=${packPanels(w.panels)}`);
   parts.push(`z=${packZones(w.zones)}`);
   if (w.peek !== null) parts.push(`k=${formatRef(w.peek)}`);
-  if (w.focus !== PAGE) parts.push(`f=${w.focus}`);
+  /* A modal is not in the URL: its host stands for it. */
+  const focus = hostOf(w.focus);
+  if (focus !== PAGE) parts.push(`f=${focus}`);
   if (w.maximized !== null) parts.push(`m=${w.maximized}`);
   return `#/w?${parts.join("&")}`;
 }
@@ -152,7 +156,7 @@ function trailTo(now: Workspace, page: ResourceRef | null): readonly ResourceRef
  * The browser moved through its history: the URL says WHERE, the session says how I got there.
  * With the entry's own memory the trails are exact; without it they are reconciled. The
  * selection survives only while its surface still shows the same resource, and the names views
- * gave stay.
+ * gave stay. So does a modal, while what it covers is still there.
  */
 export function restore(
   now: Workspace,
@@ -170,11 +174,12 @@ export function restore(
   const after = by === undefined ? null : refOn(url, by);
   const keeps = before !== null && after !== null && sameRef(before, after);
 
-  return {
+  return settleModals({
     ...url,
     trail: url.page === null ? [] : (memory?.trail ?? trailTo(now, url.page)),
     peekTrail,
     selected: keeps ? now.selected : null,
     titles: now.titles,
-  };
+    modals: now.modals,
+  });
 }

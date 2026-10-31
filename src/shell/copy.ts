@@ -33,6 +33,7 @@ export type ComposerCopy = {
     close: string;
     back: (to: string) => string;
   };
+  modal: { close: string };
   discard: {
     title: string;
     detail: (names: readonly string[]) => string;
@@ -81,6 +82,7 @@ export const ENGLISH_COMPOSER_COPY: ComposerCopy = {
     close: "Close the preview",
     back: (to) => `Back to ${to}`,
   },
+  modal: { close: "Close" },
   discard: {
     title: "Discard the changes?",
     detail: (names) => `What was typed in ${names.join(", ")} has not been saved.`,
@@ -106,8 +108,8 @@ export const ENGLISH_COMPOSER_COPY: ComposerCopy = {
     { keys: "⌥←", action: "one page back, or one step back in the peek" },
     { keys: "⌘⌥[ / ⌘⌥]", action: "move focus between the page and the panels" },
     { keys: "⌘⇧⏎", action: "maximize the focused surface, or restore it" },
-    { keys: "⌘⇧⌫", action: "close the focused panel or the peek" },
-    { keys: "Esc", action: "close the peek, or restore the maximized view" },
+    { keys: "⌘⇧⌫", action: "close the focused panel, modal or the peek" },
+    { keys: "Esc", action: "close the modal or the peek, or restore the maximized view" },
     { keys: "← → on a handle", action: "resize without the mouse" },
   ],
 };
@@ -142,6 +144,7 @@ export const SPANISH_COMPOSER_COPY: ComposerCopy = {
     close: "Cerrar la vista previa",
     back: (to) => `Volver a ${to}`,
   },
+  modal: { close: "Cerrar" },
   discard: {
     title: "¿Descartar los cambios?",
     detail: (names) => `Lo escrito en ${names.join(", ")} no se guardó.`,
@@ -167,8 +170,8 @@ export const SPANISH_COMPOSER_COPY: ComposerCopy = {
     { keys: "⌥←", action: "una página atrás, o un paso atrás en el vistazo" },
     { keys: "⌘⌥[ / ⌘⌥]", action: "mover el foco entre la página y los paneles" },
     { keys: "⌘⇧⏎", action: "maximizar la superficie con foco, o restaurarla" },
-    { keys: "⌘⇧⌫", action: "cerrar el panel con foco o el vistazo" },
-    { keys: "Esc", action: "cerrar el vistazo, o restaurar la vista maximizada" },
+    { keys: "⌘⇧⌫", action: "cerrar el panel o el modal con foco, o el vistazo" },
+    { keys: "Esc", action: "cerrar el modal o el vistazo, o restaurar la vista maximizada" },
     { keys: "← → en un divisor", action: "redimensionar sin el mouse" },
   ],
 };

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 
 import {
   back,
+  closeModal,
   closePanel,
   closePeek,
   collapsePanel,
@@ -20,8 +21,11 @@ import {
   handles,
   layout,
   maximize,
+  modalId,
+  modalOver,
   movePanel,
   navigatePanel,
+  openModal,
   openPanel,
   PAGE,
   PEEK,
@@ -31,6 +35,7 @@ import {
   peekToSide,
   push,
   raisePanel,
+  refOn,
   replace,
   resizePanel,
   resizeZone,
@@ -38,6 +43,7 @@ import {
   restore,
   select,
   selectionOf,
+  settleModals,
   sizeAt,
   start,
   STRIP,
@@ -388,4 +394,58 @@ test("25 · the browser's Back restores the place and keeps the session's memory
   const same = restore(record, fromHash(toHash(record)), null);
   assert.deepEqual(same.trail.map(fmt), [fmt(MOVES)], "the trail is not in the URL");
   assert.ok(same.selected !== null, "the selection stays while its page does");
+});
+
+test("26 · a modal sits over ONE surface, takes the focus, and gives it back", () => {
+  const w = openPanel(push(EMPTY, MOVES), FAC, Zone.Floating);
+  const asked = openModal(w, "p1", APUNTES);
+
+  assert.equal(fmt(refOn(asked, modalId("p1"))!), fmt(APUNTES));
+  assert.equal(asked.focus, modalId("p1"), "it takes the focus");
+  assert.equal(fmt(modalOver(asked, "p1")!.over), fmt(FAC), "it knows what it covers");
+  assert.equal(modalOver(asked, PAGE), null, "the page is not covered");
+  assert.equal(modalOver(asked, "p1")!.blur, false, "no blur unless asked");
+  assert.equal(openModal(asked, "p1", APUNTES), asked, "the same modal changes nothing");
+
+  const closed = closeModal(asked, modalId("p1"));
+  assert.equal(modalOver(closed, "p1"), null);
+  assert.equal(closed.focus, "p1", "the focus goes back to what it covered");
+  assert.equal(openModal(w, "p9", APUNTES), w, "no surface, no modal");
+});
+
+test("27 · one modal per surface: another one replaces it, also from inside", () => {
+  const w = openModal(push(EMPTY, MOVES), PAGE, APUNTES);
+  const again = openModal(w, modalId(PAGE), PAG, { blur: true });
+
+  assert.equal(again.modals.length, 1);
+  assert.equal(fmt(modalOver(again, PAGE)!.view), fmt(PAG));
+  assert.equal(modalOver(again, PAGE)!.blur, true);
+});
+
+test("28 · a modal belongs to what it covers: it goes with it and does not come back", () => {
+  const w = openModal(push(push(EMPTY, MOVES), FAC), PAGE, APUNTES);
+
+  const away = settleModals(push(w, PAG));
+  assert.deepEqual(away.modals, [], "another page: the question no longer applies");
+  assert.equal(
+    modalOver(settleModals(back(away)), PAGE),
+    null,
+    "and back does not ask it again",
+  );
+
+  const filtered = settleModals(replace(w, { ...FAC, params: { tab: "lines" } }));
+  assert.ok(modalOver(filtered, PAGE) !== null, "another face of the same record keeps it");
+
+  const inWindow = openModal(openPanel(w, FAC, Zone.Floating), "p1", APUNTES);
+  const gone = closePanel(inWindow, "p1");
+  assert.equal(modalOver(gone, "p1"), null, "closing the window closes its modal");
+  assert.ok(modalOver(gone, PAGE) !== null, "and leaves the page's alone");
+});
+
+test("29 · a modal is not in the URL, but survives Back while what it covers stays", () => {
+  const w = openModal(openPanel(push(EMPTY, MOVES), FAC, Zone.Floating), "p1", APUNTES);
+  assert.ok(!toHash(w).includes("modal"), "its focus is written as its host");
+
+  const after = restore(w, fromHash(toHash(w)), null);
+  assert.ok(modalOver(after, "p1") !== null);
 });

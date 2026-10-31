@@ -1,4 +1,4 @@
-import { PAGE, PEEK } from "@sincpro/web-composer/domain/index";
+import { MODAL, PAGE, PEEK } from "@sincpro/web-composer/domain/index";
 import type { WorkspaceStore } from "@sincpro/web-composer/state/store";
 import { useEffect } from "react";
 
@@ -66,6 +66,7 @@ export function useKeyboard({ workspace, enabled = true, onPalette }: UseKeyboar
         e.preventDefault();
       } else if (mod && e.shiftKey && e.code === "Backspace" && state.focus !== PAGE) {
         if (state.focus === PEEK) workspace.closePeek();
+        else if (state.focus.startsWith(MODAL)) workspace.closeModal(state.focus);
         else workspace.closePanel(state.focus);
         e.preventDefault();
       }
