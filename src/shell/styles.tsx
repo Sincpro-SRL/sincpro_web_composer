@@ -160,7 +160,7 @@ const CSS = `
 }
 .sc-modal-scrim[data-blur] { backdrop-filter: blur(var(--_modal-blur)); }
 .sc-modal {
-  display: flex; flex-direction: column; width: min(28rem, 100%); max-height: 100%;
+  display: flex; flex-direction: column; width: min(28rem, 100%); max-width: 100%; max-height: 100%;
   overflow: hidden; background: var(--_surface); border: 1px solid var(--_line-strong);
   border-radius: var(--_radius); box-shadow: var(--_shadow); outline: 0;
 }
@@ -174,6 +174,20 @@ const CSS = `
   font-size: var(--_text-small); font-weight: 600;
 }
 .sc-modal-body { flex: 1; min-height: 0; overflow: auto; container-type: inline-size; }
+
+/* A phone: one screen. The drawer is the screen's width, the modal a sheet from the bottom. */
+.sc-root[data-phone] .sc-peek { width: 100%; border-left: 0; border-radius: 0; }
+.sc-modal-scrim[data-phone] { align-items: flex-end; padding: 0; }
+.sc-modal-scrim[data-phone] .sc-modal {
+  width: 100%; max-height: 90%; border-bottom: 0;
+  border-radius: var(--_radius) var(--_radius) 0 0;
+}
+.sc-modal-scrim[data-phone] .sc-modal-head { cursor: default; }
+.sc-dock {
+  display: flex; flex-shrink: 0; align-items: center; gap: 6px; padding: 6px 8px;
+  overflow-x: auto; background: var(--_ground); border-top: 1px solid var(--_line);
+}
+.sc-dock-label { flex-shrink: 0; color: var(--_muted); font-size: var(--_text-small); }
 
 .sc-button {
   display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px;

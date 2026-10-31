@@ -93,6 +93,7 @@ A view opens anything with one call and lets the workspace decide the rest:
 api.open(ref); // the page — inside the peek, a step IN the drawer
 api.open(ref, { to: "peek" }); // or "window", or "side"
 api.open(ref, { to: "modal" }); // over THIS surface only; { blur: true } blurs what it covers
+api.open(ref, { to: "window", size: { w: 720, h: 520 } }); // a window or a modal at that size
 api.over; // in a modal: the record it was opened over — its context (null elsewhere)
 api.replace(ref); // show it HERE without a step back: the record a form just created
 api.setParams({ tenant }); // a filter that lives in the reference: survives reload and links
@@ -106,6 +107,7 @@ api.select(refs); // publish what this view has selected
 api.context; // read what the user is on and what is selected — references only
 api.pick(ref, onPick); // open a chooser (a many2one search); its view calls api.answer(ref)
 api.pick(ref, onPick, { to: "modal" }); // the chooser as a modal over the form
+api.pick(ref, onPick, { size: { w: 720, h: 520 } }); // a chooser window at that size (480×360 without it)
 ```
 
 A **modal** belongs to the surface it covers — the page, a window, a side panel or the peek —
@@ -115,6 +117,13 @@ or from inside it, replaces it. When its surface shows another record or closes,
 with it (asking first if something was typed). What it shares with whoever opened it travels in
 its reference (`params`) and comes back with `api.answer`; `api.over` says what it covers. No
 blur unless asked.
+
+**On a phone** — when the workspace is narrower than 640 px (`<Composer phoneBelow>`, `0` never)
+— it is one screen, and the views change nothing: the page takes it all; a window or a side
+panel opens as the page, with its crumb to come back; a chooser opens as a sheet from the bottom,
+so the form that asked stays to receive the answer; the peek is the screen's width. Panels that
+were already open wait in «Also open», mounted, and one tap brings each to the page. Widen it and
+the desk is back as it was.
 
 From the app, around the workspace: `workspace.start(ref)` starts over from a menu (no
 breadcrumb behind, no peek, the panels stay), and `useWorkspace({ hash: true })` puts the

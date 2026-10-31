@@ -1,3 +1,4 @@
+import type { Size } from "@sincpro/web-composer/domain/index";
 import {
   BackIcon,
   BottomIcon,
@@ -71,6 +72,10 @@ export type ModalProps = {
   title: string;
   /** Blur what it covers. Off unless the view that opened it asked. */
   blur: boolean;
+  /** The size the view asked for, in pixels; what does not fit shrinks. */
+  size?: Size;
+  /** The workspace is a phone: draw it as a sheet from the bottom, not a window. */
+  phone: boolean;
   onClose: () => void;
   children: ReactNode;
 };

@@ -3,6 +3,7 @@ import {
   type Crumb,
   Destination,
   formatRef,
+  type OpenOptions,
   PAGE,
   PEEK,
   type Registry,
@@ -64,6 +65,9 @@ export type ApiFactoryOptions = {
   registry?: Registry;
   /** Where `open(ref)` goes without a `to`. The page: what people expect of a click. */
   defaultOpen?: Destination;
+  /** Whether the workspace is a phone right now — read at call time. On a phone a window or a
+   *  side panel opens as the page, and a chooser as a modal (`domain/phone.ts`). */
+  isPhone?: () => boolean;
 };
 
 /** A panel's or a modal's frame already says what it shows. One array, so it reads as
@@ -75,7 +79,7 @@ type Pending = (value: ResourceRef) => void;
 
 export function createApiFactory(
   store: WorkspaceStore,
-  { registry, defaultOpen = Destination.Page }: ApiFactoryOptions = {},
+  { registry, defaultOpen = Destination.Page, isPhone = () => false }: ApiFactoryOptions = {},
 ): ApiFactory {
   const cache = new Map<string, { resource: ResourceRef; api: WorkspaceApi }>();
   const choosers = new Map<string, Pending>();
@@ -109,15 +113,27 @@ export function createApiFactory(
       return now !== null && model.sameRef(now, resource);
     };
 
-    /** In a modal, its blur stays what it was opened with when its view changes. */
-    const blurNow = () => model.modalOver(store.get(), model.hostOf(me))?.blur ?? false;
+    /** In a modal, what it was opened with stays when its view changes. */
+    const modalNow = (): Pick<OpenOptions, "blur" | "size"> => {
+      const m = model.modalOver(store.get(), model.hostOf(me));
+      return { blur: m?.blur ?? false, ...(m?.size === undefined ? {} : { size: m.size }) };
+    };
 
-    function open(ref: ResourceRef, to: Destination, blur = false) {
-      if (to === Destination.Modal) store.openModal(me, ref, { blur });
+    function open(ref: ResourceRef, asked: Destination, { blur, size }: OpenOptions = {}) {
+      const to = isPhone() ? model.destinationOnPhone(asked) : asked;
+      if (to === Destination.Modal)
+        store.openModal(me, ref, {
+          ...(blur === undefined ? {} : { blur }),
+          ...(size === undefined ? {} : { size }),
+        });
       else if (to === Destination.Peek) {
         if (inPeek) store.drillPeek(ref);
         else store.peek(ref);
-      } else if (to === Destination.Window) store.openPanel(ref, Zone.Floating);
+      } else if (to === Destination.Window)
+        store.openPanel(ref, {
+          zone: Zone.Floating,
+          ...(size === undefined ? {} : { size }),
+        });
       else if (to === Destination.Side)
         store.openPanel(ref, zoneFor(registry?.resolve(ref) ?? null));
       else store.push(ref);
@@ -125,7 +141,7 @@ export function createApiFactory(
 
     function replace(ref: ResourceRef) {
       if (target.surface === Surface.Panel) store.navigatePanel(target.panelId, ref);
-      else if (inModal) store.openModal(me, ref, { blur: blurNow() });
+      else if (inModal) store.openModal(me, ref, modalNow());
       else if (inPeek) store.replacePeek(ref);
       else store.replace(ref);
     }
@@ -176,7 +192,7 @@ export function createApiFactory(
           ref,
           options?.to ??
             (inPeek && defaultOpen === Destination.Page ? Destination.Peek : defaultOpen),
-          options?.blur,
+          options,
         ),
 
       navigate: (to) => {
@@ -225,9 +241,10 @@ export function createApiFactory(
       select: (refs) => store.apply((w) => model.select(w, me, refs)),
 
       pick: (ref, onPick, options) => {
-        const to = options?.to ?? Destination.Window;
+        const asked = options?.to ?? Destination.Window;
+        const to = isPhone() ? model.chooserOnPhone(asked) : asked;
         if (to === Destination.Modal) {
-          open(ref, to, options?.blur);
+          open(ref, to, options);
           choosers.set(model.modalId(model.hostOf(me)), onPick);
           return;
         }
@@ -236,7 +253,7 @@ export function createApiFactory(
           choosers.set(PEEK, onPick);
           return;
         }
-        open(ref, to);
+        open(ref, to, options);
         const id = store.get().focus;
         if (id !== PAGE && id !== PEEK) choosers.set(id, onPick);
       },

@@ -1,5 +1,6 @@
 import type { Destination, Surface, Zone } from "@sincpro/web-composer/domain/enums";
 import type { ResourceRef } from "@sincpro/web-composer/domain/resource";
+import type { Size } from "@sincpro/web-composer/domain/workspace";
 import type { ComponentType } from "react";
 
 export { Surface } from "@sincpro/web-composer/domain/enums";
@@ -15,6 +16,9 @@ export type OpenOptions = {
   /** A modal only: blur what it covers. Off by default — the surface underneath is blocked,
    *  not hidden. */
   blur?: boolean;
+  /** A window or a modal: the size it opens at, in pixels (a window: 480×360 without it). What
+   *  does not fit is shrunk to what there is. On a phone there are no windows: it is ignored. */
+  size?: Size;
 };
 
 export type PickOptions = {
@@ -26,6 +30,8 @@ export type PickOptions = {
     | typeof Destination.Modal;
   /** A modal only: blur what it covers. */
   blur?: boolean;
+  /** A window or a modal: the size the chooser opens at, in pixels. */
+  size?: Size;
 };
 
 /** One step of a breadcrumb, ready for `List.Crumbs` or `Record.Crumbs`. */

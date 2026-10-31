@@ -31,7 +31,9 @@ export const ElegirAbrirYBuscar: Story = {
     await expect(field).toHaveValue("Globex Bolivia");
 
     await userEvent.click(canvas.getByRole("button", { name: "Abrir Contacto" }));
-    await expect(await canvas.findByRole("region", { name: "Globex Bolivia" })).toBeVisible();
+    const record = await canvas.findByRole("region", { name: "Globex Bolivia" });
+    await expect(record).toBeVisible();
+    await expect(record.parentElement!.style.width).toBe("560px");
 
     await userEvent.click(canvas.getByRole("button", { name: "Buscar Contacto" }));
     await userEvent.click(

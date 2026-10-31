@@ -2,12 +2,15 @@ import assert from "node:assert/strict";
 
 import {
   back,
+  chooserOnPhone,
   closeModal,
   closePanel,
   closePeek,
   collapsePanel,
   cycleFocus,
   DEFAULT_ZONES,
+  Destination,
+  destinationOnPhone,
   drillPeek,
   EMPTY,
   expandPanel,
@@ -21,6 +24,7 @@ import {
   handles,
   layout,
   maximize,
+  MIN_WINDOW,
   modalId,
   modalOver,
   movePanel,
@@ -33,6 +37,7 @@ import {
   peekBack,
   peekToPage,
   peekToSide,
+  phoneLayout,
   push,
   raisePanel,
   refOn,
@@ -448,4 +453,61 @@ test("29 · a modal is not in the URL, but survives Back while what it covers st
 
   const after = restore(w, fromHash(toHash(w)), null);
   assert.ok(modalOver(after, "p1") !== null);
+});
+
+test("30 · a window opens at the size asked for, never below what its controls need", () => {
+  const w = openPanel(push(EMPTY, MOVES), FAC, {
+    zone: Zone.Floating,
+    size: { w: 720, h: 520 },
+  });
+  const placed = panelOf(w).placement;
+  assert.ok(placed.zone === Zone.Floating);
+  assert.deepEqual([placed.w, placed.h], [720, 520]);
+
+  const tiny = panelOf(
+    openPanel(push(EMPTY, MOVES), FAC, { zone: Zone.Floating, size: { w: 10, h: 10 } }),
+  );
+  assert.ok(tiny.placement.zone === Zone.Floating);
+  assert.deepEqual([tiny.placement.w, tiny.placement.h], [MIN_WINDOW.w, MIN_WINDOW.h]);
+
+  const again = openPanel(w, FAC, { zone: Zone.Floating, size: { w: 600, h: 400 } });
+  const resized = panelOf(again).placement;
+  assert.ok(resized.zone === Zone.Floating);
+  assert.deepEqual(
+    [again.panels.length, resized.w, resized.h],
+    [1, 600, 400],
+    "asked again: resized",
+  );
+});
+
+test("31 · a modal keeps the size it was opened with", () => {
+  const w = openModal(push(EMPTY, MOVES), PAGE, APUNTES, { size: { w: 640, h: 480 } });
+  assert.deepEqual(modalOver(w, PAGE)!.size, { w: 640, h: 480 });
+});
+
+test("32 · on a phone a window or a side panel is the page, and a chooser a modal", () => {
+  assert.equal(destinationOnPhone(Destination.Window), Destination.Page);
+  assert.equal(destinationOnPhone(Destination.Side), Destination.Page);
+  assert.equal(destinationOnPhone(Destination.Peek), Destination.Peek);
+  assert.equal(destinationOnPhone(Destination.Modal), Destination.Modal);
+  assert.equal(
+    chooserOnPhone(Destination.Window),
+    Destination.Modal,
+    "the form must stay to receive the answer",
+  );
+  assert.equal(chooserOnPhone(Destination.Peek), Destination.Peek);
+});
+
+test("33 · on a phone the page takes the screen and the panels wait hidden, still there", () => {
+  const w = openPanel(openPanel(push(EMPTY, MOVES), FAC, Zone.Right), APUNTES, Zone.Floating);
+  const slots = phoneLayout(layout(w));
+  const page = slots.find((s) => s.id === PAGE)!;
+  assert.deepEqual([resolve(page.box.width, 400), resolve(page.box.height, 700)], [400, 700]);
+  assert.ok(slots.filter((s) => s.id !== PAGE).every((s) => !s.visible));
+  assert.equal(slots.length, 3, "hidden, not dropped: what was typed survives");
+  assert.equal(
+    panelOf(w).placement.zone,
+    Zone.Right,
+    "the model is untouched: the desk comes back",
+  );
 });
