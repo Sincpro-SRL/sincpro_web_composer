@@ -1,24 +1,28 @@
 import { Zone } from "@sincpro/web-composer/domain/index";
 import { type ComposerCopy, composerCopy } from "@sincpro/web-composer/shell/copy";
+import type { IconProps } from "@sincpro/web-composer/shell/icons";
+import { type SkinIcons, useSkin } from "@sincpro/web-composer/shell/skin";
 import { useDraggablePanel } from "@sincpro/web-composer/state/drag";
-import { Menu } from "@sincpro/web-ui";
 import {
-  ArrowUpRight,
-  Copy,
-  Ellipsis,
-  Minus,
-  PanelBottom,
-  PanelLeft,
-  PanelRight,
-  PictureInPicture2,
-  Square,
-  X,
-} from "lucide-react";
-import { memo, type PointerEvent as ReactPointerEvent, type ReactNode, useRef } from "react";
+  type ComponentType,
+  type KeyboardEvent,
+  memo,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 
 /**
- * The frame of a side panel or a window. Four icons, always the same, in OS order: more,
- * minimize, enlarge, close. The page has no frame: a list or a record draws its own header.
+ * The frame of a side panel or a window. Five controls, always the same: more, open as page,
+ * then in OS order minimize, enlarge, close. «Open as page» is out of the menu because it is
+ * what a record in a panel is asked for most — every view was drawing its own button for it.
+ * The page has no frame: a list or a record draws its own header.
+ *
+ * Minimized into a narrow strip (`rail`) the title reads vertically and only restore and close
+ * remain: there is no room for the rest, and nothing else makes sense until it is restored.
  */
 
 export type PanelActions = {
@@ -29,22 +33,23 @@ export type PanelActions = {
   onClose: () => void;
 };
 
-const DESTINATIONS = (c: ComposerCopy["panel"]) =>
+const DESTINATIONS = (c: ComposerCopy["panel"], icons: SkinIcons) =>
   [
-    { zone: Zone.Left, icon: PanelLeft, label: c.left, hint: c.leftHint },
-    { zone: Zone.Right, icon: PanelRight, label: c.right, hint: c.rightHint },
-    { zone: Zone.Bottom, icon: PanelBottom, label: c.bottom, hint: c.bottomHint },
-    { zone: Zone.Floating, icon: PictureInPicture2, label: c.window, hint: c.windowHint },
+    { zone: Zone.Left, icon: icons.left, label: c.left, hint: c.leftHint },
+    { zone: Zone.Right, icon: icons.right, label: c.right, hint: c.rightHint },
+    { zone: Zone.Bottom, icon: icons.bottom, label: c.bottom, hint: c.bottomHint },
+    { zone: Zone.Floating, icon: icons.window, label: c.window, hint: c.windowHint },
   ] as const;
 
 type ControlProps = {
-  icon: typeof PanelLeft;
+  icon: ComponentType<IconProps>;
   label: string;
   active?: boolean;
   danger?: boolean;
   onClick: () => void;
 };
 
+/* `onPointerDown` stops here: a control sits on the header, and the header drags. */
 function Control({
   icon: Icon,
   label,
@@ -52,12 +57,6 @@ function Control({
   danger = false,
   onClick,
 }: ControlProps) {
-  const paint = active
-    ? "bg-primary/12 text-primary"
-    : danger
-      ? "text-muted hover:bg-bad/10 hover:text-bad"
-      : "text-muted hover:bg-ink/6 hover:text-ink";
-
   return (
     <button
       type="button"
@@ -66,14 +65,92 @@ function Control({
       aria-pressed={active}
       onClick={onClick}
       onPointerDown={(e) => e.stopPropagation()}
-      className={`inline-flex size-(--size-control-sm) shrink-0 items-center justify-center rounded-control transition-colors duration-(--duration-instant) focus-visible:outline-1 focus-visible:outline-offset-1 focus-visible:outline-primary ${paint}`}
+      className="sc-control"
+      {...(danger ? { "data-danger": "" } : {})}
     >
-      <Icon className="size-(--size-icon-sm)" strokeWidth={2} />
+      <Icon />
     </button>
   );
 }
 
-const MenuAction = { Expand: "expand" } as const;
+/**
+ * «Move to»: a menu button. Closes on a choice, on a press outside and on Escape — which it
+ * CLAIMS, so the workspace does not also close the peek or restore a maximized view.
+ */
+function MoveMenu({ zone, onMove }: { zone: Zone; onMove: (zone: Zone) => void }) {
+  const copy = composerCopy().panel;
+  const icons = useSkin().icons;
+  const MoreIcon = icons.more;
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  const menuId = useId();
+
+  useEffect(() => {
+    if (!open) return;
+    box.current?.querySelector<HTMLElement>('[role="menuitemradio"]')?.focus();
+    const outside = (e: PointerEvent) => {
+      if (!box.current?.contains(e.target as Node)) setOpen(false);
+    };
+    window.addEventListener("pointerdown", outside, true);
+    return () => window.removeEventListener("pointerdown", outside, true);
+  }, [open]);
+
+  function onKeyDown(e: KeyboardEvent) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setOpen(false);
+      box.current?.querySelector<HTMLElement>("button")?.focus();
+      return;
+    }
+    const step = e.key === "ArrowDown" ? 1 : e.key === "ArrowUp" ? -1 : 0;
+    if (step === 0) return;
+    e.preventDefault();
+    const items = [
+      ...(box.current?.querySelectorAll<HTMLElement>('[role="menuitemradio"]') ?? []),
+    ];
+    const at = items.indexOf(document.activeElement as HTMLElement);
+    items[(at + step + items.length) % items.length]?.focus();
+  }
+
+  return (
+    <div ref={box} onPointerDown={(e) => e.stopPropagation()} onKeyDown={onKeyDown}>
+      <button
+        type="button"
+        className="sc-control"
+        aria-label={copy.more}
+        title={copy.more}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <MoreIcon />
+      </button>
+      {open ? (
+        <div id={menuId} role="menu" aria-label={copy.moveTo} className="sc-menu">
+          <div className="sc-menu-label">{copy.moveTo}</div>
+          {DESTINATIONS(copy, icons).map(({ zone: z, icon: Icon, label, hint }) => (
+            <button
+              key={z}
+              type="button"
+              role="menuitemradio"
+              aria-checked={zone === z}
+              className="sc-menu-item"
+              onClick={() => {
+                setOpen(false);
+                onMove(z);
+              }}
+            >
+              <Icon />
+              {label}
+              <span className="sc-menu-hint">{hint}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export type PanelFrameProps = {
   title: string;
@@ -81,6 +158,8 @@ export type PanelFrameProps = {
   zone: Zone;
   maximized: boolean;
   collapsed: boolean;
+  /** Minimized into a narrow strip: the title is drawn vertically. */
+  rail?: boolean;
   focused: boolean;
   /** The id a docked panel is dragged by. A window has none: it moves with the pointer. */
   dragId?: string;
@@ -97,6 +176,7 @@ function Frame({
   zone,
   maximized,
   collapsed,
+  rail = false,
   focused,
   dragId,
   onMaximize,
@@ -105,77 +185,62 @@ function Frame({
   children,
 }: PanelFrameProps) {
   const copy = composerCopy().panel;
+  const icons = useSkin().icons;
   const header = useRef<HTMLElement>(null);
   const floating = zone === Zone.Floating;
   const dragging = useDraggablePanel(header, dragId ?? "", dragId !== undefined && !floating);
+  const flag = (on: boolean) => (on ? "" : undefined);
 
   return (
     <section
       role="region"
       aria-label={title}
       onPointerDownCapture={onFocus}
-      className={`flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-box border bg-surface transition-[border-color,box-shadow,opacity] duration-(--duration-instant) ${
-        focused ? "border-primary/55 ring-1 ring-primary/25" : "border-line-strong"
-      } ${floating ? "shadow-window" : ""} ${dragging ? "opacity-40" : ""}`}
+      className="sc-frame"
+      data-focused={flag(focused)}
+      data-floating={flag(floating)}
+      data-dragging={flag(dragging)}
     >
-      <header
-        ref={header}
-        onPointerDown={floating ? onMoveStart : undefined}
-        style={floating ? { touchAction: "none" } : undefined}
-        className={`flex shrink-0 items-center gap-0.5 border-b border-line bg-ground py-1 pr-1 pl-2.5 select-none ${
-          floating ? "cursor-move" : "cursor-grab active:cursor-grabbing"
-        }`}
-      >
-        <span className="min-w-0 flex-1 truncate pr-1 text-micro font-medium text-ink">
-          {title}
-        </span>
-
-        <div onPointerDown={(e) => e.stopPropagation()}>
-          <Menu
-            label={copy.more}
-            icon={Ellipsis}
-            iconOnly
-            chevron={false}
-            align="end"
-            variant="text"
-            groups={[
-              {
-                label: copy.moveTo,
-                options: DESTINATIONS(copy).map((d) => ({
-                  id: d.zone,
-                  label: d.label,
-                  hint: d.hint,
-                  icon: d.icon,
-                  checked: zone === d.zone,
-                })),
-              },
-              {
-                options: [{ id: MenuAction.Expand, label: copy.expand, icon: ArrowUpRight }],
-              },
-            ]}
-            onSelect={(id) =>
-              id === MenuAction.Expand ? actions.onExpand() : actions.onMove(id as Zone)
-            }
+      {rail ? (
+        <header ref={header} className="sc-header" data-rail="">
+          <Control
+            icon={icons.minimize}
+            label={copy.restore}
+            active
+            onClick={actions.onCollapse}
           />
-        </div>
-        <Control
-          icon={Minus}
-          label={collapsed ? copy.restore : copy.minimize}
-          active={collapsed}
-          onClick={actions.onCollapse}
-        />
-        <Control
-          icon={maximized ? Copy : Square}
-          label={maximized ? copy.restore : copy.enlarge}
-          active={maximized}
-          onClick={onMaximize}
-        />
-        <Control icon={X} label={copy.close} danger onClick={actions.onClose} />
-      </header>
+          <span className="sc-title">{title}</span>
+          <Control icon={icons.close} label={copy.close} danger onClick={actions.onClose} />
+        </header>
+      ) : (
+        <header
+          ref={header}
+          className="sc-header"
+          data-floating={flag(floating)}
+          onPointerDown={floating ? onMoveStart : undefined}
+        >
+          <span className="sc-title">{title}</span>
+          <MoveMenu zone={zone} onMove={actions.onMove} />
+          <Control icon={icons.expand} label={copy.expand} onClick={actions.onExpand} />
+          <Control
+            icon={icons.minimize}
+            label={collapsed ? copy.restore : copy.minimize}
+            active={collapsed}
+            onClick={actions.onCollapse}
+          />
+          <Control
+            icon={maximized ? icons.restore : icons.maximize}
+            label={maximized ? copy.restore : copy.enlarge}
+            active={maximized}
+            onClick={onMaximize}
+          />
+          <Control icon={icons.close} label={copy.close} danger onClick={actions.onClose} />
+        </header>
+      )}
 
-      {/* `@container` here, not in the view: a view asks for the PANEL width, which is the
+      {/* A container here, not in the view: a view asks for the PANEL width, which is the
           only one that matters with four open on a 1600px screen. */}
-      <div hidden={collapsed} className="@container min-h-0 flex-1 overflow-auto">
+      <div hidden={collapsed} className="sc-body">
         {children}
       </div>
     </section>

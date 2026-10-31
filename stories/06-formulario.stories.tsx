@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
-import { Demo, facturaNueva } from "./contabilidad/demo";
+import { Demo, facturaDesdeLaLista, facturaNueva } from "./contabilidad/demo";
 
 const meta: Meta = {
   title: "Casos de uso/06 · En un formulario: relaciones",
@@ -53,6 +53,30 @@ export const AbrirLaCuenta: Story = {
     await userEvent.click(await canvas.findByRole("button", { name: "Abrir Cuenta" }));
     await expect(
       await canvas.findByRole("region", { name: /Apuntes · Ingresos/ }),
+    ).toBeVisible();
+  },
+};
+
+/** Un formulario a medio llenar no se pierde con un clic en la miga: el espacio pregunta antes. */
+export const FormularioSucioPregunta: Story = {
+  render: () => <Demo initial={facturaDesdeLaLista()} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    await userEvent.type(await canvas.findByLabelText("Notas"), "Servicio de octubre");
+
+    await userEvent.click(canvas.getByRole("link", { name: "Asientos" }));
+    const ask = await page.findByRole("dialog", { name: "¿Descartar los cambios?" });
+    await userEvent.click(within(ask).getByRole("button", { name: "Seguir editando" }));
+    await waitFor(() => expect(page.queryByRole("dialog")).toBeNull());
+    await expect(canvas.getByLabelText("Notas")).toHaveValue("Servicio de octubre");
+
+    await userEvent.click(canvas.getByRole("button", { name: "Descartar" }));
+    await userEvent.click(
+      within(await page.findByRole("dialog")).getByRole("button", { name: "Descartar" }),
+    );
+    await expect(
+      await canvas.findByRole("heading", { name: "Asientos contables" }),
     ).toBeVisible();
   },
 };

@@ -44,13 +44,6 @@ export const Surface = {
 
 export type Surface = (typeof Surface)[keyof typeof Surface];
 
-export const BoxUnit = {
-  Fraction: "fraction",
-  Pixel: "pixel",
-} as const;
-
-export type BoxUnit = (typeof BoxUnit)[keyof typeof BoxUnit];
-
 export const HandleKind = {
   Zone: "zone",
   Panel: "panel",
@@ -64,13 +57,6 @@ export const Axis = {
 } as const;
 
 export type Axis = (typeof Axis)[keyof typeof Axis];
-
-export const Split = {
-  Vertical: "vertical",
-  Horizontal: "horizontal",
-} as const;
-
-export type Split = (typeof Split)[keyof typeof Split];
 
 export const DragKind = {
   /** A docked panel dragged by its header, to be dropped on another edge. */

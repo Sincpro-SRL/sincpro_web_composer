@@ -5,3 +5,17 @@
 @source "../node_modules/@sincpro/web-ui/dist";
 @source "../src";
 @source "../stories";
+
+/* The composer stands alone with its own skin. The stories' app is drawn with web-ui, so it
+   hands the composer ITS colors through the composer's variables — the way any app themes it. */
+:root {
+  --sc-ground: var(--color-ground);
+  --sc-surface: var(--color-surface);
+  --sc-line: var(--color-line);
+  --sc-line-strong: var(--color-line-strong);
+  --sc-ink: var(--color-ink);
+  --sc-muted: var(--color-muted);
+  --sc-accent: var(--color-primary);
+  --sc-danger: var(--color-danger);
+  --sc-scrim: var(--color-scrim);
+}

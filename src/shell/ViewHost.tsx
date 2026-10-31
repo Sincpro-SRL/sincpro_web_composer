@@ -3,12 +3,14 @@ import {
   loadView,
   type Registry,
   type ResourceRef,
+  rootRef,
   type WorkspaceApi,
 } from "@sincpro/web-composer/domain/index";
 import { composerCopy } from "@sincpro/web-composer/shell/copy";
-import { ICONO_ROTO, Missing } from "@sincpro/web-ui";
+import { type NoticeProps, useSkin } from "@sincpro/web-composer/shell/skin";
 import {
   Component,
+  type ComponentType,
   type ErrorInfo,
   lazy,
   memo,
@@ -24,10 +26,25 @@ import {
  *
  * Three distinct states because each one is someone else's job: unregistered
  * is wiring, loading is normal, broken is a domain bug.
+ *
+ * The view is keyed by the resource WITHOUT its params: another record is another view, but
+ * another face of the same one — a filter, a tab, `api.setParams` — is the same view receiving
+ * a new `resource`. Remounting there threw away the search typed, the scroll and the selection.
  */
 
+/** What stands where a view could not be drawn. Plain text: it must work even when nothing
+ *  else does. */
+function DefaultNotice({ heading, detail, bad = false }: NoticeProps) {
+  return (
+    <div role="status" className="sc-notice" {...(bad ? { "data-tone": "bad" } : {})}>
+      <strong>{heading}</strong>
+      <code>{detail}</code>
+    </div>
+  );
+}
+
 class ErrorBoundary extends Component<
-  { children: ReactNode; name: string },
+  { children: ReactNode; name: string; Notice: ComponentType<NoticeProps> },
   { error: Error | null }
 > {
   override state: { error: Error | null } = { error: null };
@@ -48,10 +65,10 @@ class ErrorBoundary extends Component<
 
   override render() {
     if (this.state.error === null) return this.props.children;
+    const { Notice } = this.props;
     return (
-      <Missing
-        icon={ICONO_ROTO}
-        tone="bad"
+      <Notice
+        bad
         heading={composerCopy().view.failed}
         detail={`${this.props.name} — ${this.state.error.message}`}
       />
@@ -69,6 +86,7 @@ export type ViewHostProps = {
 function Host({ resource, registry, api, fallback }: ViewHostProps) {
   const key = formatRef(resource);
   const spec = registry.resolve(resource);
+  const Notice = useSkin().Notice ?? DefaultNotice;
 
   const View = useMemo(
     () => (spec === null ? null : lazy(async () => ({ default: await loadView(spec) }))),
@@ -77,7 +95,7 @@ function Host({ resource, registry, api, fallback }: ViewHostProps) {
 
   if (spec === null || View === null) {
     return (
-      <Missing
+      <Notice
         heading={composerCopy().view.unresolved}
         detail={`${key} — is the «${resource.domain}» domain missing from the registry?`}
       />
@@ -85,17 +103,13 @@ function Host({ resource, registry, api, fallback }: ViewHostProps) {
   }
 
   return (
-    <ErrorBoundary name={key}>
+    <ErrorBoundary name={key} Notice={Notice}>
       <Suspense
         fallback={
-          fallback ?? (
-            <p className="p-4 text-micro text-muted">
-              {composerCopy().view.loading(spec.domain)}
-            </p>
-          )
+          fallback ?? <p className="sc-loading">{composerCopy().view.loading(spec.domain)}</p>
         }
       >
-        <View key={key} resource={resource} api={api} />
+        <View key={formatRef(rootRef(resource))} resource={resource} api={api} />
       </Suspense>
     </ErrorBoundary>
   );

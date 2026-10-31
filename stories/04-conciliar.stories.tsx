@@ -18,6 +18,13 @@ const meta: Meta = {
 export default meta;
 type Story = StoryObj;
 
+/** The checkbox of the row that shows `line`. web-ui names every one «Elegir la fila», so the
+ *  row — not the name — says which line it is. */
+async function lineCheckbox(canvasElement: HTMLElement, line: string) {
+  const cell = await within(canvasElement).findByText(line);
+  return within(cell.closest("tr")!).getByRole("checkbox");
+}
+
 /** Marca la línea de 1.250,00: el panel propone la factura de ACME que coincide; conciliar las saca de lo pendiente. */
 export const MarcarYConciliar: Story = {
   render: () => <Demo initial={conciliacion()} />,
@@ -25,7 +32,7 @@ export const MarcarYConciliar: Story = {
     const canvas = within(canvasElement);
     await expect(await canvas.findByText(/Marca una línea/)).toBeVisible();
 
-    await userEvent.click(await canvas.findByRole("checkbox", { name: /EXT-2026-0031/ }));
+    await userEvent.click(await lineCheckbox(canvasElement, "EXT-2026-0031"));
     await expect(await canvas.findByText("coincide")).toBeVisible();
 
     await userEvent.click(
@@ -41,7 +48,7 @@ export const SinCoincidencias: Story = {
   render: () => <Demo initial={conciliacion()} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByRole("checkbox", { name: /EXT-2026-0033/ }));
+    await userEvent.click(await lineCheckbox(canvasElement, "EXT-2026-0033"));
     await expect((await canvas.findAllByText(/700,00/)).length).toBeGreaterThan(0);
     await expect(canvas.queryByText("coincide")).toBeNull();
   },

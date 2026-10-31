@@ -48,6 +48,9 @@ export const conciliacion = (): Workspace =>
 /** Un formulario por llenar. */
 export const facturaNueva = (): Workspace => push(EMPTY, FACTURA_NUEVA);
 
+/** El mismo formulario, abierto desde la lista: hay una miga para irse. */
+export const facturaDesdeLaLista = (): Workspace => push(soloLaLista(), FACTURA_NUEVA);
+
 /* ── The frame every story draws the workspace in ─────────────────────── */
 
 export function Demo({

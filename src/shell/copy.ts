@@ -1,5 +1,5 @@
 /**
- * Every word the composer draws, in one table — the way `@sincpro/web-ui` does it. English by
+ * Every word the composer draws, in one table. English by
  * default; an application installs its language ONCE with `installComposerCopy`, next to the
  * design system's `installCopy`, and no component carries a hard-coded string.
  */
@@ -27,7 +27,18 @@ export type ComposerCopy = {
     dropRight: string;
     dropBottom: string;
   };
-  peek: { openAsPage: string };
+  peek: {
+    openAsPage: string;
+    openAsPanel: string;
+    close: string;
+    back: (to: string) => string;
+  };
+  discard: {
+    title: string;
+    detail: (names: readonly string[]) => string;
+    keep: string;
+    discard: string;
+  };
   link: { peek: string; side: string; window: string };
   view: { failed: string; unresolved: string; loading: (domain: string) => string };
   palette: {
@@ -64,7 +75,18 @@ export const ENGLISH_COMPOSER_COPY: ComposerCopy = {
     dropRight: "to the right",
     dropBottom: "to the bottom",
   },
-  peek: { openAsPage: "Open as page" },
+  peek: {
+    openAsPage: "Open as page",
+    openAsPanel: "Open as panel",
+    close: "Close the preview",
+    back: (to) => `Back to ${to}`,
+  },
+  discard: {
+    title: "Discard the changes?",
+    detail: (names) => `What was typed in ${names.join(", ")} has not been saved.`,
+    keep: "Keep editing",
+    discard: "Discard",
+  },
   link: { peek: "Peek", side: "Open beside", window: "Open in a window" },
   view: {
     failed: "This view failed to render",
@@ -81,10 +103,10 @@ export const ENGLISH_COMPOSER_COPY: ComposerCopy = {
   },
   shortcuts: [
     { keys: "⌘K", action: "go to, search, or act on what you are on" },
-    { keys: "⌥←", action: "one page back" },
+    { keys: "⌥←", action: "one page back, or one step back in the peek" },
     { keys: "⌘⌥[ / ⌘⌥]", action: "move focus between the page and the panels" },
     { keys: "⌘⇧⏎", action: "maximize the focused surface, or restore it" },
-    { keys: "⌘⇧⌫", action: "close the focused panel" },
+    { keys: "⌘⇧⌫", action: "close the focused panel or the peek" },
     { keys: "Esc", action: "close the peek, or restore the maximized view" },
     { keys: "← → on a handle", action: "resize without the mouse" },
   ],
@@ -114,7 +136,18 @@ export const SPANISH_COMPOSER_COPY: ComposerCopy = {
     dropRight: "a la derecha",
     dropBottom: "abajo",
   },
-  peek: { openAsPage: "Abrir como página" },
+  peek: {
+    openAsPage: "Abrir como página",
+    openAsPanel: "Abrir como panel",
+    close: "Cerrar la vista previa",
+    back: (to) => `Volver a ${to}`,
+  },
+  discard: {
+    title: "¿Descartar los cambios?",
+    detail: (names) => `Lo escrito en ${names.join(", ")} no se guardó.`,
+    keep: "Seguir editando",
+    discard: "Descartar",
+  },
   link: { peek: "Vistazo", side: "Abrir al lado", window: "Abrir en una ventana" },
   view: {
     failed: "Esta vista no se pudo dibujar",
@@ -131,10 +164,10 @@ export const SPANISH_COMPOSER_COPY: ComposerCopy = {
   },
   shortcuts: [
     { keys: "⌘K", action: "ir a, buscar o actuar sobre lo que miras" },
-    { keys: "⌥←", action: "una página atrás" },
+    { keys: "⌥←", action: "una página atrás, o un paso atrás en el vistazo" },
     { keys: "⌘⌥[ / ⌘⌥]", action: "mover el foco entre la página y los paneles" },
     { keys: "⌘⇧⏎", action: "maximizar la superficie con foco, o restaurarla" },
-    { keys: "⌘⇧⌫", action: "cerrar el panel con foco" },
+    { keys: "⌘⇧⌫", action: "cerrar el panel con foco o el vistazo" },
     { keys: "Esc", action: "cerrar el vistazo, o restaurar la vista maximizada" },
     { keys: "← → en un divisor", action: "redimensionar sin el mouse" },
   ],

@@ -4,8 +4,8 @@ import {
   type WorkspaceApi,
 } from "@sincpro/web-composer/domain/index";
 import { composerCopy } from "@sincpro/web-composer/shell/copy";
+import { useSkin } from "@sincpro/web-composer/shell/skin";
 import { useDraggableRef } from "@sincpro/web-composer/state/drag";
-import { AppWindow, Eye, PanelRight } from "lucide-react";
 import { type KeyboardEvent, type MouseEvent, type ReactNode, useRef } from "react";
 
 /**
@@ -23,9 +23,9 @@ import { type KeyboardEvent, type MouseEvent, type ReactNode, useRef } from "rea
  */
 
 const ICONS = [
-  { to: Destination.Peek, icon: Eye, label: "peek" },
-  { to: Destination.Side, icon: PanelRight, label: "side" },
-  { to: Destination.Window, icon: AppWindow, label: "window" },
+  { to: Destination.Peek, icon: "peek", label: "peek" },
+  { to: Destination.Side, icon: "right", label: "side" },
+  { to: Destination.Window, icon: "window", label: "window" },
 ] as const;
 
 export type RecordLinkProps = {
@@ -46,6 +46,7 @@ export function RecordLink({
   children,
 }: RecordLinkProps) {
   const copy = composerCopy().link;
+  const icons = useSkin().icons;
   const box = useRef<HTMLSpanElement>(null);
   const dragging = useDraggableRef(box, resource);
 
@@ -66,35 +67,30 @@ export function RecordLink({
   }
 
   return (
-    <span
-      ref={box}
-      className={`group/link inline-flex min-w-0 items-center gap-1 ${dragging ? "opacity-40" : ""}`}
-    >
-      <button
-        type="button"
-        onClick={onClick}
-        onKeyDown={onKeyDown}
-        className="min-w-0 cursor-pointer truncate rounded-mark text-left text-primary hover:underline hover:underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-      >
+    <span ref={box} className="sc-link" data-dragging={dragging ? "" : undefined}>
+      <button type="button" onClick={onClick} onKeyDown={onKeyDown} className="sc-link-name">
         {children}
       </button>
       {compact ? null : (
-        <span className="inline-flex shrink-0 items-center opacity-0 transition-opacity duration-(--duration-instant) group-focus-within/link:opacity-100 group-hover/link:opacity-100">
-          {ICONS.map(({ to: destination, icon: Icon, label }) => (
-            <button
-              key={destination}
-              type="button"
-              aria-label={copy[label]}
-              title={copy[label]}
-              onClick={(e) => {
-                e.stopPropagation();
-                api.open(resource, { to: destination });
-              }}
-              className="inline-flex size-6 cursor-pointer items-center justify-center rounded-control text-muted hover:bg-ink/8 hover:text-ink focus-visible:outline-2 focus-visible:outline-primary"
-            >
-              <Icon className="size-(--size-icon-sm)" strokeWidth={2} aria-hidden />
-            </button>
-          ))}
+        <span className="sc-link-icons">
+          {ICONS.map(({ to: destination, icon, label }) => {
+            const Icon = icons[icon];
+            return (
+              <button
+                key={destination}
+                type="button"
+                aria-label={copy[label]}
+                title={copy[label]}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  api.open(resource, { to: destination });
+                }}
+                className="sc-control"
+              >
+                <Icon />
+              </button>
+            );
+          })}
         </span>
       )}
     </span>

@@ -1,5 +1,10 @@
 import { type Dock, DOCKS, Zone } from "@sincpro/web-composer/domain/enums";
-import { type ResourceRef, sameRef } from "@sincpro/web-composer/domain/resource";
+import {
+  formatRef,
+  type ResourceRef,
+  rootRef,
+  sameRef,
+} from "@sincpro/web-composer/domain/resource";
 
 export { DOCKS, Zone };
 export type { Dock };
@@ -9,7 +14,8 @@ export type { Dock };
  *
  * The PAGE is what I am working on — a list, a record — and its `trail` is the way I came, so a
  * breadcrumb can take me back. Around it, any number of PANELS: docked beside it (`Side`) or
- * floating over it (`Window`). A peek is a drawer to read without leaving.
+ * floating over it (`Window`). A peek is a drawer to read without leaving, with its own trail of
+ * what was drilled inside it.
  *
  * The space share lives in TWO places on purpose: `zones` is how much of the container each
  * docked zone takes; `Placement.share` is how much of ITS zone a panel takes. Keeping it all
@@ -48,18 +54,25 @@ export type Workspace = {
   panels: readonly Panel[];
   zones: Zones;
   peek: ResourceRef | null;
-  /** `PAGE` or a panel id: who the shortcuts talk to. Not the browser's focus, which lives
-   *  inside the view, almost always in a field. */
+  /** What I drilled through INSIDE the peek to reach `peek`, oldest first. Session memory. */
+  peekTrail: readonly ResourceRef[];
+  /** `PAGE`, `PEEK` or a panel id: who the shortcuts talk to. Not the browser's focus, which
+   *  lives inside the view, almost always in a field. */
   focus: string;
   /** A panel id, or `PAGE`. It takes the whole workspace while it lasts. */
   maximized: string | null;
   /** The last selection any surface published. A chat or a detail panel follows THIS, not the
    *  focus: clicking into the chat must not make it lose what it was following. */
   selected: Selected | null;
+  /** The names views gave their resources once loaded (`api.setTitle`), by `formatRef`. The
+   *  crumbs and the frames show them instead of the slug. Session memory, not in the URL. */
+  titles: Readonly<Record<string, string>>;
 };
 
 /** The page is not a panel and has no id; it needs one so it can be focused and maximized. */
 export const PAGE = "page";
+/** Nor is the peek; it needs one to take the focus and publish a selection. */
+export const PEEK = "peek";
 
 export const DEFAULT_ZONES: Zones = {
   [Zone.Left]: 0.28,
@@ -81,9 +94,11 @@ export const EMPTY: Workspace = {
   panels: [],
   zones: DEFAULT_ZONES,
   peek: null,
+  peekTrail: [],
   focus: PAGE,
   maximized: null,
   selected: null,
+  titles: {},
 };
 
 const clampZone = (n: number) => Math.max(MIN_ZONE, Math.min(MAX_ZONE, n));
@@ -98,6 +113,13 @@ function nextId(used: readonly string[]): string {
 
 export const findPanel = (w: Workspace, id: string): Panel | null =>
   w.panels.find((p) => p.id === id) ?? null;
+
+/** What a surface shows now — the page, the peek or a panel — or `null` if it is not there. */
+export function refOn(w: Workspace, surface: string): ResourceRef | null {
+  if (surface === PAGE) return w.page;
+  if (surface === PEEK) return w.peek;
+  return findPanel(w, surface)?.view ?? null;
+}
 
 export const panelsIn = (w: Workspace, zone: Zone): readonly Panel[] =>
   w.panels.filter((p) => p.placement.zone === zone);
@@ -151,6 +173,17 @@ function placementFor(zone: Zone, panels: readonly Panel[]): Placement {
 /* ── The page ───────────────────────────────────────────────────────── */
 
 /**
+ * The peek is a drawer over THIS page. When the page becomes another resource the drawer would
+ * float over something that is no longer there, so it closes; another face of the same one —
+ * only `params` change: a filter, a tab — keeps it.
+ */
+function leavePage(w: Workspace, next: Workspace): Workspace {
+  const stays =
+    w.page !== null && next.page !== null && sameRef(rootRef(w.page), rootRef(next.page));
+  return stays ? next : closePeek(next);
+}
+
+/**
  * Opens `view` as the page and keeps where I was, so the breadcrumb can take me back. The first
  * page has nothing behind it. When there is nothing to change it returns THE SAME object —
  * every reducer here does, and that is what makes it possible to subscribe to a part of the
@@ -159,19 +192,40 @@ function placementFor(zone: Zone, panels: readonly Panel[]): Placement {
 export function push(w: Workspace, view: ResourceRef): Workspace {
   if (w.page === null) return { ...w, page: view };
   if (sameRef(w.page, view)) return w;
-  return { ...w, page: view, trail: [...w.trail, w.page], selected: dropSelection(w, PAGE) };
+  return leavePage(w, {
+    ...w,
+    page: view,
+    trail: [...w.trail, w.page],
+    selected: dropSelection(w, PAGE),
+  });
+}
+
+/** Puts `view` where the page is WITHOUT a crumb: a filter that changed, or the record a form
+ *  just created — the form should not stay in the way back. */
+export function replace(w: Workspace, view: ResourceRef): Workspace {
+  if (w.page === null) return { ...w, page: view };
+  if (sameRef(w.page, view)) return w;
+  return leavePage(w, { ...w, page: view, selected: dropSelection(w, PAGE) });
+}
+
+/** Starting over, from a menu: `view` is the page and the way back starts with it. The panels
+ *  stay — they are how the person arranged the desk, not where they were. */
+export function start(w: Workspace, view: ResourceRef): Workspace {
+  if (w.page !== null && sameRef(w.page, view) && w.trail.length === 0 && w.peek === null)
+    return w;
+  return closePeek({ ...w, page: view, trail: [], selected: dropSelection(w, PAGE) });
 }
 
 /** Back to the page at `index` of the trail; the pages after it are dropped. A crumb is this. */
 export function goTo(w: Workspace, index: number): Workspace {
   const target = w.trail[index];
   if (target === undefined) return w;
-  return {
+  return leavePage(w, {
     ...w,
     page: target,
     trail: w.trail.slice(0, index),
     selected: dropSelection(w, PAGE),
-  };
+  });
 }
 
 /** One page back. Nothing to go back to is not an error: it changes nothing. */
@@ -302,8 +356,10 @@ export function collapsePanel(w: Workspace, id: string): Workspace {
   }));
 }
 
-/** Take the whole workspace. Calling it on what is already maximized gives it back. */
+/** Take the whole workspace. Calling it on what is already maximized gives it back. The peek is
+ *  a drawer: it grows into the page instead (`peekToPage`). */
 export function maximize(w: Workspace, target: string | null): Workspace {
+  if (target === PEEK) return w;
   if (target !== null && target !== PAGE && findPanel(w, target) === null) return w;
   return { ...w, maximized: w.maximized === target ? null : target };
 }
@@ -311,13 +367,13 @@ export function maximize(w: Workspace, target: string | null): Workspace {
 /** The WORKSPACE focus, which is who the shortcuts talk to. Opening a panel focuses it. */
 export function focusPanel(w: Workspace, target: string): Workspace {
   if (w.focus === target) return w;
-  if (target !== PAGE && findPanel(w, target) === null) return w;
+  if (refOn(w, target) === null) return w;
   return { ...w, focus: target };
 }
 
-/** The next one in reading order: the page, then each panel. */
+/** The next one in reading order: the page, the peek over it, then each panel. */
 export function cycleFocus(w: Workspace, delta: number): Workspace {
-  const order = [PAGE, ...w.panels.map((p) => p.id)];
+  const order = [PAGE, ...(w.peek === null ? [] : [PEEK]), ...w.panels.map((p) => p.id)];
   const current = Math.max(0, order.indexOf(w.focus));
   const next = order[(current + delta + order.length) % order.length];
   return next === undefined ? w : focusPanel(w, next);
@@ -335,13 +391,61 @@ export function expandPanel(w: Workspace, id: string): Workspace {
 
 /* ── Peek ───────────────────────────────────────────────────────────── */
 
+/**
+ * Opened from outside — a row, ⌘K — the drawer starts fresh: its trail is only of what was
+ * drilled INSIDE it. It takes the focus, so ⌘K acts on what I am reading. Without a page there
+ * is nothing to read beside, so it becomes the page.
+ */
 export function peek(w: Workspace, view: ResourceRef): Workspace {
-  if (w.peek !== null && sameRef(w.peek, view)) return w;
-  return { ...w, peek: view };
+  if (w.page === null) return push(w, view);
+  if (w.peek !== null && sameRef(w.peek, view) && w.peekTrail.length === 0) return w;
+  return { ...w, peek: view, peekTrail: [], focus: PEEK, selected: dropSelection(w, PEEK) };
 }
 
-export const closePeek = (w: Workspace): Workspace =>
-  w.peek === null ? w : { ...w, peek: null };
+/** From inside the drawer: what it shows now goes to its trail, so ← comes back to it. */
+export function drillPeek(w: Workspace, view: ResourceRef): Workspace {
+  if (w.peek === null) return peek(w, view);
+  if (sameRef(w.peek, view)) return w;
+  return {
+    ...w,
+    peek: view,
+    peekTrail: [...w.peekTrail, w.peek],
+    selected: dropSelection(w, PEEK),
+  };
+}
+
+/** Another face, or the record a form in the drawer just created: no step in its trail. */
+export function replacePeek(w: Workspace, view: ResourceRef): Workspace {
+  if (w.peek === null) return peek(w, view);
+  if (sameRef(w.peek, view)) return w;
+  return { ...w, peek: view, selected: dropSelection(w, PEEK) };
+}
+
+/** Back to the step at `index` of the drawer's trail. */
+export function peekGoTo(w: Workspace, index: number): Workspace {
+  const target = w.peekTrail[index];
+  if (target === undefined) return w;
+  return {
+    ...w,
+    peek: target,
+    peekTrail: w.peekTrail.slice(0, index),
+    selected: dropSelection(w, PEEK),
+  };
+}
+
+export const peekBack = (w: Workspace): Workspace =>
+  w.peekTrail.length === 0 ? w : peekGoTo(w, w.peekTrail.length - 1);
+
+export function closePeek(w: Workspace): Workspace {
+  if (w.peek === null) return w;
+  return {
+    ...w,
+    peek: null,
+    peekTrail: [],
+    focus: w.focus === PEEK ? PAGE : w.focus,
+    selected: dropSelection(w, PEEK),
+  };
+}
 
 /** The peek becomes the page. */
 export function peekToPage(w: Workspace): Workspace {
@@ -380,11 +484,38 @@ export function select(w: Workspace, by: string, refs: readonly ResourceRef[]): 
   return { ...w, selected: { by, refs } };
 }
 
-/** What the user is working on: the page, or the panel that has the focus. */
+/** What the user is working on: the page, the peek or the panel that has the focus. */
 export function focusedRef(w: Workspace): ResourceRef | null {
-  if (w.focus === PAGE) return w.page;
-  return findPanel(w, w.focus)?.view ?? w.page;
+  return refOn(w, w.focus) ?? w.page;
 }
+
+/** Every resource the workspace shows or can go back to. */
+const reachable = (w: Workspace): readonly ResourceRef[] => [
+  ...w.trail,
+  ...(w.page === null ? [] : [w.page]),
+  ...w.peekTrail,
+  ...(w.peek === null ? [] : [w.peek]),
+  ...w.panels.map((p) => p.view),
+];
+
+/**
+ * The name a view gives its resource once it has loaded it — «Acme S.R.L.» instead of
+ * `acme`. `null` gives the `ViewSpec` title back. Names of what is no longer reachable are
+ * forgotten on the way, so the map does not grow with the session.
+ */
+export function nameRef(w: Workspace, ref: ResourceRef, title: string | null): Workspace {
+  const key = formatRef(ref);
+  if ((w.titles[key] ?? null) === title) return w;
+
+  const alive = new Set(reachable(w).map(formatRef));
+  const titles: Record<string, string> = {};
+  for (const [k, v] of Object.entries(w.titles)) if (k !== key && alive.has(k)) titles[k] = v;
+  if (title !== null) titles[key] = title;
+  return { ...w, titles };
+}
+
+export const nameOf = (w: Workspace, ref: ResourceRef): string | null =>
+  w.titles[formatRef(ref)] ?? null;
 
 export const selectionOf = (w: Workspace): readonly ResourceRef[] =>
   w.selected?.refs ?? NO_REFS;

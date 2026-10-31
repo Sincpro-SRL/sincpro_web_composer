@@ -11,7 +11,9 @@ import {
   Block,
   Button,
   DataField,
+  DensityProvider,
   List,
+  Menu,
   Record,
   StatusDot,
   Table,
@@ -87,7 +89,11 @@ const ESTADO_TONE = { borrador: "neutral", publicado: "warn", conciliado: "good"
  */
 function Hoja({ api, children }: { api: WorkspaceApi; children: ReactNode }) {
   if (api.surface !== Surface.Page)
-    return <div className="@container bg-surface">{children}</div>;
+    return (
+      <Compacta api={api}>
+        <div className="@container bg-surface">{children}</div>
+      </Compacta>
+    );
   return (
     <div className="bg-ground p-6">
       <div className="@container overflow-hidden rounded-box border border-line-strong bg-surface">
@@ -95,6 +101,15 @@ function Hoja({ api, children }: { api: WorkspaceApi; children: ReactNode }) {
       </div>
     </div>
   );
+}
+
+/**
+ * The density is the APP's decision, not the composer's: in the peek — a narrow drawer — the
+ * views draw compact. The composer only says which surface they are on.
+ */
+function Compacta({ api, children }: { api: WorkspaceApi; children: ReactNode }) {
+  if (api.surface !== Surface.Peek) return children;
+  return <DensityProvider value="compact">{children}</DensityProvider>;
 }
 
 /* ── A selection a list publishes ────────────────────────────────────── */
@@ -162,7 +177,7 @@ export function Asientos({ resource, api }: ViewProps) {
         empty={{ sentence: "No hay asientos." }}
       >
         <List.Bar>
-          {api.crumbs().length === 0 ? null : <List.Crumbs crumbs={api.crumbs()} />}
+          <List.Crumbs crumbs={api.crumbs()} />
           <List.Identity
             title="Asientos contables"
             description="facturas, pagos y extractos bancarios"
@@ -254,7 +269,7 @@ export function Apuntes({ resource, api }: ViewProps) {
         empty={{ sentence: "No hay apuntes." }}
       >
         <List.Bar>
-          {api.crumbs().length === 0 ? null : <List.Crumbs crumbs={api.crumbs()} />}
+          <List.Crumbs crumbs={api.crumbs()} />
           <List.Identity
             title={
               cuenta === undefined
@@ -391,81 +406,98 @@ export function AsientoView({ resource, api }: ViewProps) {
 
   const other = asientoById(all, a.conciliadoCon);
   return (
-    <div className={api.surface === Surface.Page ? "bg-ground p-4" : "bg-ground"}>
-      <Record
-        identity={{
-          title: a.id,
-          tag: { label: TIPO_LABEL[a.tipo], tone: TIPO_TONE[a.tipo] },
-        }}
-      >
-        <Record.Rail>
-          {api.crumbs().length === 0 ? null : <Record.Crumbs crumbs={api.crumbs()} />}
-          <Record.Actions>
-            <Button
-              size="sm"
-              role="secondary"
-              onClick={() => api.open(apuntesDeAsiento(a.id), { to: Destination.Side })}
-            >
-              Ver apuntes
-            </Button>
-            {api.surface === Surface.Page ? null : (
-              <Button size="sm" role="secondary" onClick={api.expand}>
-                Agrandar a página
+    <Compacta api={api}>
+      <div className={api.surface === Surface.Page ? "bg-ground p-4" : "bg-ground"}>
+        <Record
+          identity={{
+            title: a.id,
+            tag: { label: TIPO_LABEL[a.tipo], tone: TIPO_TONE[a.tipo] },
+          }}
+        >
+          <Record.Rail>
+            <Record.Crumbs crumbs={api.crumbs()} />
+            <Record.Actions>
+              <Button
+                size="sm"
+                role="secondary"
+                onClick={() => api.open(apuntesDeAsiento(a.id), { to: Destination.Side })}
+              >
+                Ver apuntes
               </Button>
-            )}
-          </Record.Actions>
-          {/* The stage bar needs the page's width; a window or a peek says it in a word. */}
-          {api.surface === Surface.Page ? (
-            <Record.Status stages={ETAPAS} current={a.estado} />
-          ) : null}
-        </Record.Rail>
+            </Record.Actions>
+            {/* The stage bar needs the page's width; a window or a peek says it in a word. */}
+            {api.surface === Surface.Page ? (
+              <Record.Status stages={ETAPAS} current={a.estado} />
+            ) : null}
+          </Record.Rail>
 
-        <Record.Paper layout="horizontal">
-          <Record.Facts
-            fields={[
-              { label: "Contacto", value: contactoNombre(a.contacto) },
-              { label: "Fecha", value: a.fecha },
-              { label: "Referencia", value: a.ref },
-              { label: "Total", value: money(a.total) },
-              ...(api.surface === Surface.Page
-                ? []
-                : [
-                    {
-                      label: "Estado",
-                      value: <Tag tone={ESTADO_TONE[a.estado]}>{ESTADO_LABEL[a.estado]}</Tag>,
-                    },
-                  ]),
-              {
-                label: "Conciliado con",
-                value:
-                  other === undefined ? (
-                    "—"
+          <Record.Paper layout="horizontal">
+            <Record.Facts
+              fields={[
+                { label: "Contacto", value: contactoNombre(a.contacto) },
+                { label: "Fecha", value: a.fecha },
+                { label: "Referencia", value: a.ref },
+                { label: "Total", value: money(a.total) },
+                ...(api.surface === Surface.Page
+                  ? []
+                  : [
+                      {
+                        label: "Estado",
+                        value: (
+                          <Tag tone={ESTADO_TONE[a.estado]}>{ESTADO_LABEL[a.estado]}</Tag>
+                        ),
+                      },
+                    ]),
+                {
+                  label: "Conciliado con",
+                  value:
+                    other === undefined ? (
+                      "—"
+                    ) : (
+                      <RecordLink api={api} resource={asientoRef(other.id)}>
+                        {other.id}
+                      </RecordLink>
+                    ),
+                },
+              ]}
+            />
+            <Record.Pages current="lineas" onChange={() => {}}>
+              <Record.Page
+                id="lineas"
+                label="apuntes"
+                count={APUNTES.filter((l) => l.asiento === a.id).length}
+              >
+                {/* A menu INSIDE the record, so the peek has one: its Escape closes the menu and
+                  must not close the drawer too. */}
+                <div className="flex justify-end pb-1">
+                  <Menu
+                    label="Más del asiento"
+                    variant="text"
+                    align="end"
+                    groups={[
+                      {
+                        options: [
+                          { id: "copiar", label: "Copiar el número" },
+                          { id: "imprimir", label: "Imprimir" },
+                        ],
+                      },
+                    ]}
+                    onSelect={() => {}}
+                  />
+                </div>
+                <Block title="debe y haber" flush>
+                  {api.surface === Surface.Page ? (
+                    <Lineas asiento={a.id} api={api} />
                   ) : (
-                    <RecordLink api={api} resource={asientoRef(other.id)}>
-                      {other.id}
-                    </RecordLink>
-                  ),
-              },
-            ]}
-          />
-          <Record.Pages current="lineas" onChange={() => {}}>
-            <Record.Page
-              id="lineas"
-              label="apuntes"
-              count={APUNTES.filter((l) => l.asiento === a.id).length}
-            >
-              <Block title="debe y haber" flush>
-                {api.surface === Surface.Page ? (
-                  <Lineas asiento={a.id} api={api} />
-                ) : (
-                  <LineasCompactas asiento={a.id} />
-                )}
-              </Block>
-            </Record.Page>
-          </Record.Pages>
-        </Record.Paper>
-      </Record>
-    </div>
+                    <LineasCompactas asiento={a.id} />
+                  )}
+                </Block>
+              </Record.Page>
+            </Record.Pages>
+          </Record.Paper>
+        </Record>
+      </div>
+    </Compacta>
   );
 }
 
@@ -499,7 +531,7 @@ export function Conciliar({ api }: ViewProps) {
         empty={{ sentence: "Todo está conciliado." }}
       >
         <List.Bar>
-          {api.crumbs().length === 0 ? null : <List.Crumbs crumbs={api.crumbs()} />}
+          <List.Crumbs crumbs={api.crumbs()} />
           <List.Identity
             title="Extracto bancario"
             description="marca una línea y concilíala con lo pendiente"
@@ -629,11 +661,6 @@ export function ContactoView({ resource, api }: ViewProps) {
           </li>
         ))}
       </ul>
-      {api.surface === Surface.Page ? null : (
-        <Button size="sm" role="secondary" onClick={api.expand}>
-          Agrandar a página
-        </Button>
-      )}
     </div>
   );
 }
@@ -671,6 +698,10 @@ export function FacturaNueva({ api }: ViewProps) {
   const [contacto, setContacto] = useState<string | null>(null);
   const [cuenta, setCuenta] = useState<string | null>("4.1.1");
   const [notas, setNotas] = useState("");
+  /* Lo escrito sin guardar: mientras lo haya, una miga, cerrar o el Atrás del navegador
+     preguntan antes de tirarlo. */
+  const dirty = contacto !== null || notas !== "";
+  useEffect(() => api.setDirty(dirty), [api, dirty]);
 
   return (
     <div className={api.surface === Surface.Page ? "bg-ground p-4" : "bg-ground"}>
@@ -678,7 +709,13 @@ export function FacturaNueva({ api }: ViewProps) {
         identity={{ title: "Factura nueva", tag: { label: "borrador", tone: "neutral" } }}
       >
         <Record.Rail>
-          {api.crumbs().length === 0 ? null : <Record.Crumbs crumbs={api.crumbs()} />}
+          <Record.Crumbs crumbs={api.crumbs()} />
+          <Record.Actions>
+            {/* `close`: en la página vuelve atrás, en un panel o el vistazo lo cierra. */}
+            <Button size="sm" role="ghost" onClick={api.close}>
+              Descartar
+            </Button>
+          </Record.Actions>
         </Record.Rail>
         <Record.Paper layout="stacked">
           <div className="flex max-w-xl flex-col gap-3 p-4">

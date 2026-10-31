@@ -1,12 +1,12 @@
 import {
   Axis,
-  BoxUnit,
-  formatRef,
+  type Box,
   type Handle,
   HandleKind,
   handles,
   KEYBOARD_STEP,
   layout,
+  type Length,
   PAGE,
   type Registry,
   sizeAt,
@@ -57,10 +57,33 @@ const MIN_WINDOW = { w: 280, h: 160 };
 /** How much of a window must stay inside the host, so it can always be grabbed back. */
 const KEEP_VISIBLE = 80;
 
-function boxStyle(box: Slot["box"]): CSSProperties {
-  const u = (n: number) => (box.unit === BoxUnit.Fraction ? `${n * 100}%` : `${n}px`);
-  return { left: u(box.left), top: u(box.top), width: u(box.width), height: u(box.height) };
+/** A share of the host plus pixels, as CSS. `calc()` only when both are there. */
+function css({ fr, px }: Length, nudge = 0): string {
+  const pixels = px + nudge;
+  if (pixels === 0) return `${fr * 100}%`;
+  if (fr === 0) return `${pixels}px`;
+  return `calc(${fr * 100}% + ${pixels}px)`;
 }
+
+function boxStyle(box: Box): CSSProperties {
+  return {
+    left: css(box.left),
+    top: css(box.top),
+    width: css(box.width),
+    height: css(box.height),
+  };
+}
+
+const WHOLE: Box = {
+  left: { fr: 0, px: 0 },
+  top: { fr: 0, px: 0 },
+  width: { fr: 1, px: 0 },
+  height: { fr: 1, px: 0 },
+};
+
+/** Padding of a docked slot. A strip keeps it only across: along, its 36 px are the header. */
+const slotPadding = (slot: Slot) =>
+  slot.floating ? undefined : slot.rail ? "y" : slot.collapsed ? "x" : "all";
 
 /**
  * A drag that follows the pointer until it is released, wherever it goes. The listeners live on
@@ -139,32 +162,29 @@ function ResizeHandle({
       style={
         horizontal
           ? {
-              left: `calc(${handle.at * 100}% - ${HANDLE_THICKNESS / 2}px)`,
+              left: css(handle.at, -HANDLE_THICKNESS / 2),
               top: 0,
               width: HANDLE_THICKNESS,
               height: "100%",
-              touchAction: "none",
             }
           : {
-              top: `calc(${handle.at * 100}% - ${HANDLE_THICKNESS / 2}px)`,
+              top: css(handle.at, -HANDLE_THICKNESS / 2),
               left: 0,
               height: HANDLE_THICKNESS,
               width: "100%",
-              touchAction: "none",
             }
       }
-      className={`absolute z-10 transition-colors duration-(--duration-instant) hover:bg-primary/25 focus-visible:bg-primary/35 focus-visible:outline-none ${
-        horizontal ? "cursor-col-resize" : "cursor-row-resize"
-      }`}
+      className="sc-handle"
+      data-axis={handle.axis}
     />
   );
 }
 
 /** The three grips of a window: right edge, bottom edge, and the corner. */
 const GRIPS = [
-  { id: "e", className: "top-0 right-0 h-full w-2 cursor-e-resize", dx: 1, dy: 0 },
-  { id: "s", className: "bottom-0 left-0 h-2 w-full cursor-s-resize", dx: 0, dy: 1 },
-  { id: "se", className: "right-0 bottom-0 size-4 cursor-se-resize", dx: 1, dy: 1 },
+  { id: "e", dx: 1, dy: 0 },
+  { id: "s", dx: 0, dy: 1 },
+  { id: "se", dx: 1, dy: 1 },
 ] as const;
 
 function ZoneDropTarget({
@@ -186,11 +206,11 @@ function ZoneDropTarget({
       ref={box}
       aria-hidden
       style={style}
-      className={`absolute z-30 flex items-center justify-center rounded-box border-2 border-dashed transition-colors duration-(--duration-instant) ${
-        armed ? "pointer-events-auto" : "pointer-events-none"
-      } ${over ? "border-primary bg-primary/12" : "border-transparent"}`}
+      className="sc-drop"
+      data-armed={armed ? "" : undefined}
+      data-over={over ? "" : undefined}
     >
-      {over ? <span className="text-micro font-medium text-primary">{label}</span> : null}
+      {over ? label : null}
     </div>
   );
 }
@@ -238,8 +258,8 @@ export function PanelHost({ workspace, overlay, registry, store, api }: PanelHos
   };
 
   function moveWindow(e: ReactPointerEvent, slot: Slot) {
-    if (slot.box.unit !== BoxUnit.Pixel) return;
-    const { left, top, width } = slot.box;
+    if (!slot.floating) return;
+    const [left, top, width] = [slot.box.left.px, slot.box.top.px, slot.box.width.px];
     const start = { x: e.clientX, y: e.clientY };
 
     store.raisePanel(slot.id);
@@ -255,8 +275,8 @@ export function PanelHost({ workspace, overlay, registry, store, api }: PanelHos
   }
 
   function resizeWindow(e: ReactPointerEvent, slot: Slot, dx: number, dy: number) {
-    if (slot.box.unit !== BoxUnit.Pixel) return;
-    const { width, height } = slot.box;
+    if (!slot.floating) return;
+    const [width, height] = [slot.box.width.px, slot.box.height.px];
     const start = { x: e.clientX, y: e.clientY };
 
     e.stopPropagation();
@@ -270,16 +290,16 @@ export function PanelHost({ workspace, overlay, registry, store, api }: PanelHos
 
   function moveHandle(e: ReactPointerEvent, handle: Handle) {
     drag(e, (host, ev) => {
-      const p =
+      const [p, size] =
         handle.axis === Axis.X
-          ? (ev.clientX - host.left) / host.width
-          : (ev.clientY - host.top) / host.height;
-      applyHandle(handle, sizeAt(handle, p));
+          ? [ev.clientX - host.left, host.width]
+          : [ev.clientY - host.top, host.height];
+      applyHandle(handle, sizeAt(handle, p, size));
     });
   }
 
   return (
-    <div ref={hostRef} className="relative min-h-0 flex-1 overflow-hidden">
+    <div ref={hostRef} className="sc-host">
       {stableOrder(slots).map((slot) => {
         const isPage = slot.id === PAGE;
         const style = {
@@ -294,7 +314,8 @@ export function PanelHost({ workspace, overlay, registry, store, api }: PanelHos
               hidden={!slot.visible}
               style={style}
               onPointerDownCapture={() => store.focusPanel(PAGE)}
-              className="absolute isolate min-h-0 overflow-auto"
+              className="sc-slot"
+              data-page=""
             >
               <ViewHost
                 resource={slot.view}
@@ -311,12 +332,14 @@ export function PanelHost({ workspace, overlay, registry, store, api }: PanelHos
             key={slot.id}
             hidden={!slot.visible}
             style={style}
-            className={`absolute isolate ${slot.floating ? "" : "p-1"}`}
+            className="sc-slot"
+            data-pad={slotPadding(slot)}
           >
             <PanelFrame
-              title={registry.resolve(slot.view)?.title(slot.view) ?? formatRef(slot.view)}
+              title={api.titleOf(slot.view)}
               zone={zone}
               collapsed={slot.collapsed}
+              rail={slot.rail}
               focused={workspace.focus === slot.id}
               maximized={workspace.maximized === slot.id}
               {...(slot.floating ? {} : { dragId: slot.id })}
@@ -342,9 +365,9 @@ export function PanelHost({ workspace, overlay, registry, store, api }: PanelHos
                   <div
                     key={grip.id}
                     aria-hidden
-                    style={{ touchAction: "none" }}
                     onPointerDown={(e) => resizeWindow(e, slot, grip.dx, grip.dy)}
-                    className={`absolute z-10 ${grip.className}`}
+                    className="sc-grip"
+                    data-grip={grip.id}
                   />
                 ))
               : null}
@@ -355,21 +378,15 @@ export function PanelHost({ workspace, overlay, registry, store, api }: PanelHos
       {overlay === undefined || overlay === null ? null : (
         <div
           style={boxStyle(
-            slots.find((slot) => slot.id === PAGE && slot.visible)?.box ?? {
-              unit: BoxUnit.Fraction,
-              left: 0,
-              top: 0,
-              width: 1,
-              height: 1,
-            },
+            slots.find((slot) => slot.id === PAGE && slot.visible)?.box ?? WHOLE,
           )}
-          className="pointer-events-none absolute z-40 [&>*]:pointer-events-auto"
+          className="sc-overlay"
         >
           {overlay}
         </div>
       )}
 
-      <div className="pointer-events-none absolute inset-0">
+      <div className="sc-drops">
         {DROP_ZONES.map((b) => (
           <ZoneDropTarget
             key={b.zone}

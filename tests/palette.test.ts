@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { mock, test } from "node:test";
 
 import {
   createRegistry,
@@ -9,6 +8,7 @@ import {
   searchEntries,
   type ViewSpec,
 } from "@sincpro/web-composer/domain/index";
+import { test, vi } from "vitest";
 
 const View = () => null;
 
@@ -74,11 +74,11 @@ test("a query matches every word, ignoring accents, case and order", () => {
 });
 
 test("a failing domain does not take the others' results with it", async () => {
-  const warn = mock.method(console, "warn", () => {});
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
   const found = await searchEntries(REGISTRY, "FAC-99");
   assert.equal(found.length, 1);
   assert.equal(found[0]!.label, "Asiento FAC-99");
-  assert.equal(warn.mock.callCount(), 1, "the failure is logged, not swallowed");
+  assert.equal(warn.mock.calls.length, 1, "the failure is logged, not swallowed");
   assert.deepEqual(await searchEntries(REGISTRY, "F"), [], "one letter asks nobody");
-  warn.mock.restore();
+  warn.mockRestore();
 });

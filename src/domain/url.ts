@@ -1,11 +1,18 @@
 import { type Dock, DOCKS, Zone } from "@sincpro/web-composer/domain/enums";
-import { formatRef, parseRef } from "@sincpro/web-composer/domain/resource";
+import {
+  formatRef,
+  parseRef,
+  type ResourceRef,
+  sameRef,
+} from "@sincpro/web-composer/domain/resource";
 import {
   DEFAULT_ZONES,
   EMPTY,
   PAGE,
   type Panel,
+  PEEK,
   type Placement,
+  refOn,
   type Workspace,
   type Zones,
 } from "@sincpro/web-composer/domain/workspace";
@@ -111,13 +118,63 @@ export function fromHash(hash: string): Workspace {
   const zones = query.get("z");
 
   const has = (id: string | null) => id !== null && panels.some((p) => p.id === id);
+  const pageRef = page === null ? null : parseRef(page);
+  /* A drawer needs a page to sit over: without one it is dropped, like any broken part. */
+  const peekRef = peek === null || pageRef === null ? null : parseRef(peek);
   return {
     ...EMPTY,
-    page: page === null ? null : parseRef(page),
+    page: pageRef,
     panels,
     zones: zones === null ? DEFAULT_ZONES : unpackZones(zones),
-    peek: peek === null ? null : parseRef(peek),
-    focus: has(focus) ? focus! : PAGE,
+    peek: peekRef,
+    focus: has(focus) || (focus === PEEK && peekRef !== null) ? focus! : PAGE,
     maximized: maximized === PAGE || has(maximized) ? maximized : null,
+  };
+}
+
+/** What the URL does not carry, written into each browser history entry. */
+export type SessionMemory = {
+  trail: readonly ResourceRef[];
+  peekTrail: readonly ResourceRef[];
+};
+
+/** A page reached without memory — a link typed or clicked: one already in the trail goes back
+ *  to it; any other is one step forward. */
+function trailTo(now: Workspace, page: ResourceRef | null): readonly ResourceRef[] {
+  if (page === null) return [];
+  if (now.page !== null && sameRef(now.page, page)) return now.trail;
+  const index = now.trail.findIndex((past) => sameRef(past, page));
+  if (index >= 0) return now.trail.slice(0, index);
+  return now.page === null ? [] : [...now.trail, now.page];
+}
+
+/**
+ * The browser moved through its history: the URL says WHERE, the session says how I got there.
+ * With the entry's own memory the trails are exact; without it they are reconciled. The
+ * selection survives only while its surface still shows the same resource, and the names views
+ * gave stay.
+ */
+export function restore(
+  now: Workspace,
+  url: Workspace,
+  memory: SessionMemory | null,
+): Workspace {
+  const peekTrail =
+    url.peek === null
+      ? []
+      : (memory?.peekTrail ??
+        (now.peek !== null && sameRef(now.peek, url.peek) ? now.peekTrail : []));
+
+  const by = now.selected?.by;
+  const before = by === undefined ? null : refOn(now, by);
+  const after = by === undefined ? null : refOn(url, by);
+  const keeps = before !== null && after !== null && sameRef(before, after);
+
+  return {
+    ...url,
+    trail: url.page === null ? [] : (memory?.trail ?? trailTo(now, url.page)),
+    peekTrail,
+    selected: keeps ? now.selected : null,
+    titles: now.titles,
   };
 }
