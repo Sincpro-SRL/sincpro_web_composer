@@ -75,7 +75,7 @@ export type ApiFactoryOptions = {
 const NO_CRUMBS: readonly Crumb[] = [];
 
 /** A chooser open in a panel, waiting for its answer. */
-type Pending = (value: ResourceRef) => void;
+type Pending = (value: unknown) => void;
 
 export function createApiFactory(
   store: WorkspaceStore,
@@ -245,17 +245,17 @@ export function createApiFactory(
         const to = isPhone() ? model.chooserOnPhone(asked) : asked;
         if (to === Destination.Modal) {
           open(ref, to, options);
-          choosers.set(model.modalId(model.hostOf(me)), onPick);
+          choosers.set(model.modalId(model.hostOf(me)), onPick as Pending);
           return;
         }
         if (to === Destination.Peek) {
           store.peek(ref);
-          choosers.set(PEEK, onPick);
+          choosers.set(PEEK, onPick as Pending);
           return;
         }
         open(ref, to, options);
         const id = store.get().focus;
-        if (id !== PAGE && id !== PEEK) choosers.set(id, onPick);
+        if (id !== PAGE && id !== PEEK) choosers.set(id, onPick as Pending);
       },
 
       answer: (value) => {
