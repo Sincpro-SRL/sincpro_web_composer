@@ -11,7 +11,8 @@ import { includes } from "./datos";
  *   «open»    the chosen record in a WINDOW sized for a record (⇧ click: beside the form),
  *             without leaving the form
  *   «search»  a list in a MODAL over the form that ANSWERS the field — `api.pick` and
- *             `api.answer`. It blocks the form only: wherever the form is, the rest answers.
+ *             `api.answer`; it is asked the current value (`question`) to mark it. It blocks
+ *             the form only: wherever the form is, the rest answers.
  */
 export function Many2One({
   api,
@@ -74,7 +75,11 @@ export function Many2One({
         type="button"
         aria-label={`Buscar ${label}`}
         onClick={() =>
-          api.pick(chooserOf, (ref) => onChange(ref.id ?? ""), { to: Destination.Modal })
+          api.pick(chooserOf, (ref) => onChange(ref.id ?? ""), {
+            to: Destination.Modal,
+            /* What the list cannot know from its reference: the value this field has now. */
+            question: { actual: value },
+          })
         }
         className="inline-flex size-8 cursor-pointer items-center justify-center rounded-control text-muted hover:bg-ink/8"
       >

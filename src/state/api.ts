@@ -74,8 +74,8 @@ export type ApiFactoryOptions = {
  *  «unchanged». */
 const NO_CRUMBS: readonly Crumb[] = [];
 
-/** A chooser open in a panel, waiting for its answer. */
-type Pending = (value: unknown) => void;
+/** A chooser waiting for its answer: who receives it, and what it was asked. */
+type Pending = { onPick: (value: unknown) => void; question: unknown };
 
 export function createApiFactory(
   store: WorkspaceStore,
@@ -95,6 +95,16 @@ export function createApiFactory(
     for (const id of choosers.keys()) if (model.refOn(w, id) === null) choosers.delete(id);
     for (const key of cache.keys()) if (model.refOn(w, key) === null) cache.delete(key);
   });
+
+  /** `id` now waits for an answer, or no longer does. Its API is built again: `choosing` is a
+   *  value read in render, and the surface may keep showing the same resource. */
+  function ask(id: string, pending: Pending) {
+    choosers.set(id, pending);
+    cache.delete(id);
+  }
+  function forget(id: string) {
+    if (choosers.delete(id)) cache.delete(id);
+  }
 
   const context: WorkspaceApi["context"] = {
     focused: () => model.focusedRef(store.get()),
@@ -119,8 +129,12 @@ export function createApiFactory(
       return { blur: m?.blur ?? false, ...(m?.size === undefined ? {} : { size: m.size }) };
     };
 
+    /** A fresh modal or peek opened from OUTSIDE it is not the chooser that was there: whoever
+     *  waited for that one is not waiting for this. From inside, it is the chooser drilling. */
     function open(ref: ResourceRef, asked: Destination, { blur, size }: OpenOptions = {}) {
       const to = isPhone() ? model.destinationOnPhone(asked) : asked;
+      if (to === Destination.Modal && !inModal) forget(model.modalId(model.hostOf(me)));
+      if (to === Destination.Peek && !inPeek) forget(PEEK);
       if (to === Destination.Modal)
         store.openModal(me, ref, {
           ...(blur === undefined ? {} : { blur }),
@@ -186,6 +200,10 @@ export function createApiFactory(
       surface: target.surface,
       over: inModal ? (model.modalOver(store.get(), target.host)?.over ?? null) : null,
       context,
+      choosing: (() => {
+        const pending = choosers.get(me);
+        return pending === undefined ? null : { question: pending.question };
+      })(),
 
       open: (ref, options) =>
         open(
@@ -241,29 +259,33 @@ export function createApiFactory(
       select: (refs) => store.apply((w) => model.select(w, me, refs)),
 
       pick: (ref, onPick, options) => {
+        const pending: Pending = {
+          onPick: onPick as Pending["onPick"],
+          question: options?.question,
+        };
         const asked = options?.to ?? Destination.Window;
         const to = isPhone() ? model.chooserOnPhone(asked) : asked;
         if (to === Destination.Modal) {
           open(ref, to, options);
-          choosers.set(model.modalId(model.hostOf(me)), onPick as Pending);
+          ask(model.modalId(model.hostOf(me)), pending);
           return;
         }
         if (to === Destination.Peek) {
           store.peek(ref);
-          choosers.set(PEEK, onPick as Pending);
+          ask(PEEK, pending);
           return;
         }
         open(ref, to, options);
         const id = store.get().focus;
-        if (id !== PAGE && id !== PEEK) choosers.set(id, onPick as Pending);
+        if (id !== PAGE && id !== PEEK) ask(id, pending);
       },
 
       answer: (value) => {
-        const onPick = choosers.get(me);
-        if (onPick === undefined) return;
+        const pending = choosers.get(me);
+        if (pending === undefined) return;
         /* Forget it BEFORE closing, so closing is not mistaken for anything else. */
         choosers.delete(me);
-        onPick(value);
+        pending.onPick(value);
         if (inModal) store.closeModal(me);
         else if (inPeek) store.closePeek();
         else if (target.surface === Surface.Panel) store.closePanel(target.panelId);

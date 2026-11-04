@@ -51,6 +51,9 @@ const CSS = `
 }
 .sc-root *, .sc-root *::before, .sc-root *::after { box-sizing: border-box; }
 .sc-root :focus-visible { outline: 2px solid var(--_accent); outline-offset: 1px; }
+/* A modal takes the focus when it opens so that it is announced, not to be pointed at: the
+   ring on the whole dialog read as a thick coloured border. The controls inside keep theirs. */
+.sc-root .sc-modal:focus-visible { outline: 0; }
 .sc-root :is(.sc-control, .sc-button, .sc-menu-item, .sc-palette-search, .sc-option-icon) svg {
   flex-shrink: 0; width: var(--_icon); height: var(--_icon);
 }

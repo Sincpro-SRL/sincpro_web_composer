@@ -32,7 +32,16 @@ export type PickOptions = {
   blur?: boolean;
   /** A window or a modal: the size the chooser opens at, in pixels. */
   size?: Size;
+  /**
+   * What the chooser is asked, beyond what it shows: the ids already chosen, the amount to
+   * suggest. Any value, in memory — it lives exactly as long as the wait for the answer, like the
+   * answer itself. What must survive a reload or a link (a filter, a company) goes in `params`.
+   */
+  question?: unknown;
 };
+
+/** Why a view was opened when it was opened to answer: what `pick` asked it. */
+export type Choosing = { question: unknown };
 
 /** One step of a breadcrumb, ready for `List.Crumbs` or `Record.Crumbs`. */
 export type Crumb = { label: string; onClick?: () => void };
@@ -112,17 +121,27 @@ export type WorkspaceApi = {
    * Open `ref` as a chooser: when its view calls `answer`, `onPick` receives the value and the
    * chooser closes. The value is a reference by default — a many2one — but it can be anything
    * the chooser's view answers: `true` for a confirmation, a date range, an amount. Closed
-   * without an answer, `onPick` is never called.
+   * without an answer, `onPick` is never called. `question` reaches the chooser as
+   * `api.choosing.question`.
    *
    *     api.pick<boolean>(confirmRef, (ok) => ok && post(), { to: Destination.Modal });
+   *     api.pick(chooserRef, fill, { to: Destination.Modal, question: { chosen: ids } });
    */
   pick: <T = ResourceRef>(
     ref: ResourceRef,
     onPick: (value: T) => void,
     options?: PickOptions,
   ) => void;
+  /**
+   * Opened by `pick`, waiting for an answer: what it was asked. `null` when it was opened to be
+   * looked at — `open`, a link, a reload: the wait does not survive one, so neither does this.
+   * The same view can draw itself to choose (a «Choose» per row) or to read (rows that open).
+   * It stays while the chooser filters or drills (`setParams`, `navigate`) and goes when it
+   * answers or closes.
+   */
+  choosing: Choosing | null;
   /** From a chooser: deliver the value to whoever asked, and close this surface. Nobody asked
-   *  (it was opened with `open`, not `pick`): nothing happens. */
+   *  (`choosing` is `null`): nothing happens. */
   answer: (value: unknown) => void;
 };
 

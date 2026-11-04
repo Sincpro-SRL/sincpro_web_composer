@@ -9,6 +9,7 @@
 
 export type {
   Action,
+  Choosing,
   Crumb,
   OpenOptions,
   PaletteEntry,

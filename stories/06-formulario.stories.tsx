@@ -1,7 +1,9 @@
+import { EMPTY, push } from "@sincpro/web-composer/domain/index";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { Demo, facturaDesdeLaLista, facturaNueva } from "./contabilidad/demo";
+import { elegir } from "./contabilidad/vistas";
 
 const meta: Meta = {
   title: "Casos de uso/06 · En un formulario: relaciones",
@@ -9,7 +11,7 @@ const meta: Meta = {
     docs: {
       description: {
         component:
-          "**Many2one:** se elige tipeando; el botón **abrir** muestra el registro en una **ventana** sin salir del formulario (⇧clic: al lado); el botón **buscar** abre, en un **modal sobre el formulario**, una lista que **responde** al campo (`api.pick` / `api.answer`) y se cierra sola. Lo que ya se escribió en el formulario no se pierde mientras tanto.",
+          "**Many2one:** se elige tipeando; el botón **abrir** muestra el registro en una **ventana** sin salir del formulario (⇧clic: al lado); el botón **buscar** abre, en un **modal sobre el formulario**, una lista que **responde** al campo (`api.pick` / `api.answer`) y se cierra sola. La lista **sabe que la abrieron para elegir** (`api.choosing`) y qué le preguntan (`question`: el valor actual), sin nada en la URL; abierta con un enlace, es una lista para mirar. Lo que ya se escribió en el formulario no se pierde mientras tanto.",
       },
     },
   },
@@ -44,6 +46,38 @@ export const ElegirAbrirYBuscar: Story = {
       expect(canvas.queryByRole("dialog", { name: "Elegir contacto" })).toBeNull(),
     );
     await expect(canvas.getByLabelText("Notas")).toHaveValue("Servicio de octubre");
+  },
+};
+
+/** El buscador sabe que lo abrieron para elegir, y el campo le dijo qué valor tiene: lo marca
+ *  como «actual» en vez de ofrecerlo otra vez. Nada de eso viaja en la referencia. */
+export const ElBuscadorSabeQueElige: Story = {
+  render: () => <Demo initial={facturaNueva()} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const field = await canvas.findByRole("combobox", { name: "Contacto" });
+    await userEvent.click(field);
+    await userEvent.type(field, "glob");
+    await userEvent.click(await canvas.findByRole("option", { name: /Globex/ }));
+
+    await userEvent.click(canvas.getByRole("button", { name: "Buscar Contacto" }));
+    const modal = within(await canvas.findByRole("dialog", { name: "Elegir contacto" }));
+    await expect(await modal.findByText("actual")).toBeVisible();
+    await expect(modal.queryByRole("button", { name: "Elegir Globex Bolivia" })).toBeNull();
+    await expect(modal.getByRole("button", { name: "Elegir Initech Ltda." })).toBeVisible();
+    await expect(modal.queryByRole("button", { name: /^Abrir / })).toBeNull();
+  },
+};
+
+/** La misma lista abierta con un enlace — o tras recargar — no tiene a quién responder: nadie
+ *  espera. Es una lista para mirar, y cada fila abre su registro. */
+export const LaMismaListaParaMirar: Story = {
+  render: () => <Demo initial={push(EMPTY, elegir("contacto"))} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByRole("button", { name: "Abrir Initech Ltda." }));
+    await expect(await canvas.findByRole("region", { name: "Initech Ltda." })).toBeVisible();
+    await expect(canvas.queryByRole("button", { name: /^Elegir / })).toBeNull();
   },
 };
 

@@ -40,6 +40,7 @@ export {
 } from "@sincpro/web-composer/domain/phone";
 export {
   type Action,
+  type Choosing,
   createRegistry,
   type Crumb,
   loadView,

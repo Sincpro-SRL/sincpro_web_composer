@@ -340,6 +340,52 @@ test("a chooser can answer any value, not only a reference: a confirmation", () 
   assert.deepEqual(answers, [true], "closed without an answer: nobody is called");
 });
 
+test("a chooser knows it was asked, and what: `choosing` and `question`", () => {
+  const { store, factory, page } = setup();
+  assert.equal(page.choosing, null, "opened to look at: nobody waits for it");
+
+  const chosen = ["A-1"];
+  page.pick(ASIENTOS, () => undefined, { to: Destination.Modal, question: { chosen } });
+  const modal = () =>
+    factory.for(store.get().modals[0]!.view, { surface: Surface.Modal, host: PAGE });
+  assert.deepEqual(modal().choosing, { question: { chosen } }, "in memory, as it was given");
+  assert.equal(modal().self.params, undefined, "the question never touches the reference");
+
+  modal().setParams({ q: "fac" });
+  assert.equal(modal().self.params?.["q"], "fac");
+  assert.deepEqual(modal().choosing?.question, { chosen }, "filtering, it is still choosing");
+
+  modal().answer(FAC);
+  assert.deepEqual(store.get().modals, []);
+  page.open(ASIENTOS, { to: Destination.Modal });
+  assert.equal(modal().choosing, null, "the same view opened with `open`: to look at");
+});
+
+test("a modal opened over a chooser is not that chooser: nobody waits for it", () => {
+  const { factory, page } = setup();
+  const got: string[] = [];
+  page.pick(ASIENTOS, (v) => got.push(v.id ?? ""), { to: Destination.Modal });
+  page.open(NUEVO, { to: Destination.Modal });
+
+  const modal = factory.for(NUEVO, { surface: Surface.Modal, host: PAGE });
+  assert.equal(modal.choosing, null);
+  modal.answer(FAC);
+  assert.deepEqual(got, [], "the old asker is not called by a modal it did not open");
+});
+
+test("a window already open becomes the chooser when it is picked", () => {
+  const { store, factory, page } = setup();
+  page.open(PAG, { to: Destination.Window });
+  const id = store.get().panels[0]!.id;
+  const before = factory.for(PAG, { surface: Surface.Panel, panelId: id });
+  assert.equal(before.choosing, null);
+
+  page.pick(PAG, () => undefined, { question: 7 });
+  assert.equal(store.get().panels.length, 1, "the same window, not a second one");
+  const after = factory.for(PAG, { surface: Surface.Panel, panelId: id });
+  assert.deepEqual(after.choosing, { question: 7 }, "its API is lent again, now choosing");
+});
+
 test("a view is tested without a workspace: the test api remembers what it asked", () => {
   const t = createTestApi(FAC, { surface: Surface.Modal, over: ASIENTOS });
   assert.equal(t.api.over, ASIENTOS);
@@ -358,6 +404,14 @@ test("a view is tested without a workspace: the test api remembers what it asked
   t.api.pick(APUNTE, (v) => (got = v.id ?? ""));
   t.respond(APUNTE);
   assert.equal(got, "A-1", "a chooser answers the way its view would");
+});
+
+test("a view is tested as a chooser: it reads its question and its answer is recorded", () => {
+  const t = createTestApi(ASIENTOS, { choosing: { question: { chosen: ["A-1"] } } });
+  assert.deepEqual(t.api.choosing?.question, { chosen: ["A-1"] });
+  t.api.answer(FAC);
+  assert.deepEqual(t.callsTo("answer")[0]!.args, [FAC]);
+  assert.equal(createTestApi(ASIENTOS).api.choosing, null, "without it: opened to look at");
 });
 
 test("a view reads the context and publishes its selection", () => {
