@@ -1,4 +1,5 @@
 import {
+  type Choosing,
   type Crumb,
   type ResourceRef,
   Surface,
@@ -15,7 +16,8 @@ import {
  *     // … click «Register payment»
  *     expect(t.calls).toContainEqual({ method: "open", args: [paymentRef("F-1"), { to: "modal" }] });
  *
- * A chooser it was asked to open answers with `respond(value)`, the way its view would.
+ * A chooser it was asked to open answers with `respond(value)`, the way its view would. A view
+ * tested AS a chooser gets `{ choosing: { question } }`, and its `answer` is recorded.
  */
 
 /** One call the view made: the method and its arguments, as given. */
@@ -33,6 +35,8 @@ export type TestApiOptions = {
   crumbs?: readonly Crumb[];
   /** What `api.context.selection()` gives. */
   selection?: readonly ResourceRef[];
+  /** Opened by `pick` with this question (`api.choosing`). `null` without it: opened to look. */
+  choosing?: Choosing | null;
 };
 
 export type TestApi = {
@@ -64,6 +68,7 @@ export function createTestApi(self: ResourceRef, options: TestApiOptions = {}): 
     self,
     surface: options.surface ?? Surface.Page,
     over: options.over ?? null,
+    choosing: options.choosing ?? null,
     context: {
       focused: () => self,
       selection: () => selection,

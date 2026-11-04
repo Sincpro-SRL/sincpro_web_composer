@@ -746,7 +746,15 @@ export function PagoNuevo({ resource, api }: ViewProps) {
   );
 }
 
-/** Una lista para ELEGIR: no abre nada, RESPONDE a quien preguntó. */
+/** Lo que el many2one le pregunta al buscador: cuál es el valor que ya tiene. */
+export type PreguntaDelCampo = { actual: string | null };
+
+/**
+ * Una lista que sabe para qué la abrieron. Con `pick` (`api.choosing`), RESPONDE a quien
+ * preguntó, y marca el valor que el campo ya tiene — se lo dijo en `question`, sin pasar por la
+ * URL. Abierta con un enlace o tras recargar, nadie espera respuesta: es una lista para mirar, y
+ * cada fila abre su registro.
+ */
 export function Elegir({ resource, api }: ViewProps) {
   const de = resource.params?.["de"];
   const rows =
@@ -754,19 +762,34 @@ export function Elegir({ resource, api }: ViewProps) {
       ? CUENTAS.map((c) => ({ id: c.id, nombre: `${c.id} · ${c.nombre}` }))
       : CONTACTOS.map((c) => ({ id: c.id, nombre: c.nombre }));
   const kind = de === "cuenta" ? "apuntes" : "contacto";
+  const abrir = (id: string) => (de === "cuenta" ? apuntesDeCuenta(id) : contactoRef(id));
+  const pregunta = api.choosing?.question as PreguntaDelCampo | undefined;
   return (
     <ul className="flex flex-col gap-1 p-3">
       {rows.map((r) => (
         <li key={r.id} className="flex items-center gap-2 text-meta">
           <span className="flex-1 text-ink">{r.nombre}</span>
-          <Button
-            size="sm"
-            role="secondary"
-            aria-label={`Elegir ${r.nombre}`}
-            onClick={() => api.answer({ domain: "contabilidad", kind, id: r.id })}
-          >
-            Elegir
-          </Button>
+          {api.choosing === null ? (
+            <Button
+              size="sm"
+              role="ghost"
+              aria-label={`Abrir ${r.nombre}`}
+              onClick={() => api.open(abrir(r.id), { to: Destination.Window })}
+            >
+              Abrir
+            </Button>
+          ) : r.id === pregunta?.actual ? (
+            <Tag tone="info">actual</Tag>
+          ) : (
+            <Button
+              size="sm"
+              role="secondary"
+              aria-label={`Elegir ${r.nombre}`}
+              onClick={() => api.answer({ domain: "contabilidad", kind, id: r.id })}
+            >
+              Elegir
+            </Button>
+          )}
         </li>
       ))}
     </ul>

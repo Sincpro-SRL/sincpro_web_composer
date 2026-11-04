@@ -109,14 +109,23 @@ api.pick(ref, onPick); // open a chooser (a many2one search); its view calls api
 api.pick(ref, onPick, { to: "modal" }); // the chooser as a modal over the form
 api.pick(ref, onPick, { size: { w: 720, h: 520 } }); // a chooser window at that size (480×360 without it)
 api.pick<boolean>(confirmRef, (ok) => ok && post(), { to: "modal" }); // any value, not only a ref
+api.pick(ref, onPick, { question: { chosen } }); // what the chooser is asked, in memory
+api.choosing; // in the chooser: { question } while someone waits for its answer; null when opened to look
 ```
+
+A **chooser** knows it is one: `api.choosing` says it was opened by `pick` and what it was asked,
+so the same list draws a «Choose» per row or rows that open, with no flag in its reference. The
+question lives exactly as long as the wait for the answer — in memory, like the answer — and so
+does `choosing`: a link or a reload opens the view to look at it. What must survive those (a
+filter, a company, a default) is not a question: it goes in `params`.
 
 A **modal** belongs to the surface it covers — the page, a window, a side panel or the peek —
 and blocks only that one: the rest of the workspace keeps answering, and a window keeps moving
 and closing by its own title bar. One per surface: opening another one over the same surface,
 or from inside it, replaces it. When its surface shows another record or closes, the modal goes
 with it (asking first if something was typed). What it shares with whoever opened it travels in
-its reference (`params`) and comes back with `api.answer`; `api.over` says what it covers. No
+its reference (`params`) — or, for a chooser, in its `question` — and comes back with
+`api.answer`; `api.over` says what it covers. No
 blur unless asked.
 
 **On a phone** — when the workspace is narrower than 640 px (`<Composer phoneBelow>`, `0` never)
@@ -251,7 +260,7 @@ store, no shell, no browser:
 ```ts
 import { createTestApi } from "@sincpro/web-composer";
 
-const t = createTestApi(invoiceRef("F-1")); // { surface, over, crumbs, selection } optional
+const t = createTestApi(invoiceRef("F-1")); // { surface, over, crumbs, selection, choosing } optional
 render(<Invoice resource={t.api.self} api={t.api} />);
 // … click «Register payment»
 expect(t.callsTo("open")[0].args).toEqual([paymentRef("F-1"), { to: "modal" }]);
