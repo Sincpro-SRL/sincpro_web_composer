@@ -22,7 +22,11 @@ import {
   SkinProvider,
 } from "@sincpro/web-composer/shell/skin";
 import { ComposerStyles } from "@sincpro/web-composer/shell/styles";
-import { ViewHost } from "@sincpro/web-composer/shell/ViewHost";
+import {
+  type OnViewError,
+  ViewErrorProvider,
+  ViewHost,
+} from "@sincpro/web-composer/shell/ViewHost";
 import { registerAgentTools, workspaceTools } from "@sincpro/web-composer/state/agent";
 import { createApiFactory, targetOf } from "@sincpro/web-composer/state/api";
 import { useDropMonitor } from "@sincpro/web-composer/state/drag";
@@ -98,6 +102,9 @@ export type ComposerProps = {
   /** Offer the workspace to the browser's agent (WebMCP): where am I, open, search, act. Off by
    *  default; without WebMCP in the browser it does nothing. One workspace per page should. */
   agentTools?: boolean;
+  /** Told when a view breaks while drawing — hand it to the app's error reporter. Its panel
+   *  shows a notice and the rest of the workspace goes on either way. */
+  onViewError?: OnViewError;
 };
 
 /**
@@ -156,6 +163,7 @@ export function Composer({
   skin: skinProp,
   phoneBelow = PHONE_WIDTH,
   agentTools = false,
+  onViewError,
 }: ComposerProps) {
   const skin = useMemo(() => resolveSkin(skinProp), [skinProp]);
   const Drawer = skin.Peek ?? PeekDrawer;
@@ -253,110 +261,119 @@ export function Composer({
   const peekSpec = peeked === null ? null : registry.resolve(peeked);
   const cameFrom = state.peekTrail.at(-1);
 
-  return (
-    <SkinProvider value={skin}>
-      <div ref={root} className="sc-root" {...(phone ? { "data-phone": "" } : {})}>
-        {skin.styles ? <ComposerStyles /> : null}
-        {state.page === null ? (
-          <div className="sc-empty">{empty}</div>
-        ) : (
-          <PanelHost
-            workspace={state}
-            registry={registry}
-            store={workspace}
-            api={api}
-            phone={phone}
-            overlay={
-              peeked === null ? null : (
-                <>
-                  {/* `contents`: no box of its own, so the drawer still lays out against the
+  const desk = (
+    <div ref={root} className="sc-root" {...(phone ? { "data-phone": "" } : {})}>
+      {skin.styles ? <ComposerStyles /> : null}
+      {state.page === null ? (
+        <div className="sc-empty">{empty}</div>
+      ) : (
+        <PanelHost
+          workspace={state}
+          registry={registry}
+          store={workspace}
+          api={api}
+          phone={phone}
+          overlay={
+            peeked === null ? null : (
+              <>
+                {/* `contents`: no box of its own, so the drawer still lays out against the
                       page; it only hears the pointer, to hand the shortcuts to what is being
                       read. A modal over the drawer covers the page it sits on: the drawer has
                       no frame to hold it. */}
-                  <div
-                    style={{ display: "contents" }}
-                    inert={peekModal !== null}
-                    onPointerDownCapture={() => workspace.focusPanel(PEEK)}
-                  >
-                    <Drawer
-                      title={api.titleOf(peeked)}
-                      onClose={workspace.closePeek}
-                      actions={
-                        <>
-                          {/* On a phone there is no side to dock it to. */}
-                          {phone ? null : (
-                            <ChromeButton
-                              onClick={() =>
-                                workspace.peekToSide(peekSpec?.preferredZone ?? Zone.Right)
-                              }
-                            >
-                              {copy.peek.openAsPanel}
-                            </ChromeButton>
-                          )}
-                          {cameFrom === undefined ? null : (
-                            <ChromeButton
-                              role="ghost"
-                              icon={skin.icons.back}
-                              onClick={workspace.peekBack}
-                            >
-                              {copy.peek.back(api.titleOf(cameFrom))}
-                            </ChromeButton>
-                          )}
-                          <ChromeButton role="ghost" onClick={workspace.peekToPage}>
-                            {copy.peek.openAsPage}
+                <div
+                  style={{ display: "contents" }}
+                  inert={peekModal !== null}
+                  onPointerDownCapture={() => workspace.focusPanel(PEEK)}
+                >
+                  <Drawer
+                    title={api.titleOf(peeked)}
+                    onClose={workspace.closePeek}
+                    actions={
+                      <>
+                        {/* On a phone there is no side to dock it to. */}
+                        {phone ? null : (
+                          <ChromeButton
+                            onClick={() =>
+                              workspace.peekToSide(peekSpec?.preferredZone ?? Zone.Right)
+                            }
+                          >
+                            {copy.peek.openAsPanel}
                           </ChromeButton>
-                        </>
-                      }
-                    >
-                      <ViewHost
-                        resource={peeked}
-                        registry={registry}
-                        api={api.for(peeked, { surface: Surface.Peek })}
-                      />
-                    </Drawer>
-                  </div>
-                  {peekModal === null ? null : (
-                    <ModalLayer
-                      modal={peekModal}
+                        )}
+                        {cameFrom === undefined ? null : (
+                          <ChromeButton
+                            role="ghost"
+                            icon={skin.icons.back}
+                            onClick={workspace.peekBack}
+                          >
+                            {copy.peek.back(api.titleOf(cameFrom))}
+                          </ChromeButton>
+                        )}
+                        <ChromeButton role="ghost" onClick={workspace.peekToPage}>
+                          {copy.peek.openAsPage}
+                        </ChromeButton>
+                      </>
+                    }
+                  >
+                    <ViewHost
+                      resource={peeked}
                       registry={registry}
-                      store={workspace}
-                      api={api}
-                      phone={phone}
+                      api={api.for(peeked, { surface: Surface.Peek })}
                     />
-                  )}
-                </>
-              )
-            }
-          />
-        )}
-
-        {phone && state.page !== null && state.panels.length > 0 ? (
-          <PhoneDock
-            panels={state.panels}
-            titleOf={api.titleOf}
-            onBring={workspace.expandPanel}
-          />
-        ) : null}
-
-        <Confirm
-          open={asking !== null}
-          title={copy.discard.title}
-          detail={asking === null ? "" : copy.discard.detail(asking.names)}
-          keep={copy.discard.keep}
-          discard={copy.discard.discard}
-          onAnswer={(ok) => asking?.answer(ok)}
+                  </Drawer>
+                </div>
+                {peekModal === null ? null : (
+                  <ModalLayer
+                    modal={peekModal}
+                    registry={registry}
+                    store={workspace}
+                    api={api}
+                    phone={phone}
+                  />
+                )}
+              </>
+            )
+          }
         />
+      )}
 
-        {palette ? (
-          <WorkspacePalette
-            registry={registry}
-            focused={focusedRef(state)}
-            onOpen={open}
-            onAction={run}
-            onClose={() => setPalette(false)}
-          />
-        ) : null}
-      </div>
+      {phone && state.page !== null && state.panels.length > 0 ? (
+        <PhoneDock
+          panels={state.panels}
+          titleOf={api.titleOf}
+          onBring={workspace.expandPanel}
+        />
+      ) : null}
+
+      <Confirm
+        open={asking !== null}
+        title={copy.discard.title}
+        detail={asking === null ? "" : copy.discard.detail(asking.names)}
+        keep={copy.discard.keep}
+        discard={copy.discard.discard}
+        onAnswer={(ok) => asking?.answer(ok)}
+      />
+
+      {palette ? (
+        <WorkspacePalette
+          registry={registry}
+          focused={focusedRef(state)}
+          onOpen={open}
+          onAction={run}
+          onClose={() => setPalette(false)}
+        />
+      ) : null}
+    </div>
+  );
+
+  return (
+    <SkinProvider value={skin}>
+      {/* Only when given: an app that wraps the composer in a provider of its own keeps it. */}
+      {onViewError === undefined ? (
+        desk
+      ) : (
+        <ViewErrorProvider value={onViewError}>{desk}</ViewErrorProvider>
+      )}
     </SkinProvider>
   );
 }

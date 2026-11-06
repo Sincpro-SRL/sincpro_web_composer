@@ -11,11 +11,13 @@ import { type NoticeProps, useSkin } from "@sincpro/web-composer/shell/skin";
 import {
   Component,
   type ComponentType,
+  createContext,
   type ErrorInfo,
   lazy,
   memo,
   type ReactNode,
   Suspense,
+  useContext,
   useMemo,
 } from "react";
 
@@ -43,8 +45,32 @@ function DefaultNotice({ heading, detail, bad = false }: NoticeProps) {
   );
 }
 
+/** Where a view failed: the reference it was opened with, and React's stack of components. */
+export type ViewErrorAbout = { resource: ResourceRef; componentStack: string | undefined };
+
+/**
+ * Told when a view breaks while drawing — once per failure, after the panel shows its notice.
+ *
+ * Context: the boundary keeps the rest of the workspace alive, but a console line is nobody's
+ * report: the application hands this to its error reporter (GlitchTip, Sentry), the same place
+ * its use cases report to. Whatever it does, it never breaks the workspace — a handler that
+ * throws is ignored.
+ */
+export type OnViewError = (error: Error, about: ViewErrorAbout) => void;
+
+const ViewErrorContext = createContext<OnViewError | undefined>(undefined);
+
+/** `Composer onViewError` sets it for every view it hosts; a host of its own sets it here. */
+export const ViewErrorProvider = ViewErrorContext.Provider;
+
 class ErrorBoundary extends Component<
-  { children: ReactNode; name: string; Notice: ComponentType<NoticeProps> },
+  {
+    children: ReactNode;
+    name: string;
+    resource: ResourceRef;
+    Notice: ComponentType<NoticeProps>;
+    onError: OnViewError | undefined;
+  },
   { error: Error | null }
 > {
   override state: { error: Error | null } = { error: null };
@@ -55,6 +81,14 @@ class ErrorBoundary extends Component<
 
   override componentDidCatch(error: Error, info: ErrorInfo) {
     console.error(`[view ${this.props.name}] failed to render`, error, info.componentStack);
+    try {
+      this.props.onError?.(error, {
+        resource: this.props.resource,
+        componentStack: info.componentStack ?? undefined,
+      });
+    } catch {
+      // Telling someone about a failure never becomes a second one.
+    }
   }
 
   override componentDidUpdate(prev: { name: string }) {
@@ -87,6 +121,7 @@ function Host({ resource, registry, api, fallback }: ViewHostProps) {
   const key = formatRef(resource);
   const spec = registry.resolve(resource);
   const Notice = useSkin().Notice ?? DefaultNotice;
+  const onError = useContext(ViewErrorContext);
 
   const View = useMemo(
     () => (spec === null ? null : lazy(async () => ({ default: await loadView(spec) }))),
@@ -103,7 +138,7 @@ function Host({ resource, registry, api, fallback }: ViewHostProps) {
   }
 
   return (
-    <ErrorBoundary name={key} Notice={Notice}>
+    <ErrorBoundary name={key} resource={resource} Notice={Notice} onError={onError}>
       <Suspense
         fallback={
           fallback ?? <p className="sc-loading">{composerCopy().view.loading(spec.domain)}</p>

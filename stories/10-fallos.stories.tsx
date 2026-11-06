@@ -7,7 +7,7 @@ import {
   Zone,
 } from "@sincpro/web-composer/domain/index";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, waitFor, within } from "storybook/test";
 
 import { Demo } from "./contabilidad/demo";
 import { CONTABILIDAD } from "./contabilidad/dominio";
@@ -78,5 +78,40 @@ export const UnaUrlConBasuraSeCargaSinRomperse: Story = {
     const canvas = within(canvasElement);
     await expect(await canvas.findByText("Conciliado con")).toBeVisible();
     await expect(await canvas.findByRole("region", { name: "Asientos" })).toBeVisible();
+  },
+};
+
+const told: { domain: string; message: string }[] = [];
+
+/**
+ * La falla de una vista llega al reporte de errores de la aplicación (`onViewError`): el panel
+ * muestra su aviso y la app sabe qué se rompió y dónde, una vez. (Etiquetada `throws`.)
+ */
+export const LaFallaDeUnaVistaLlegaAlReporte: Story = {
+  tags: ["throws"],
+  render: () => {
+    let w = push(EMPTY, ASIENTOS);
+    w = openPanel(w, { domain: "roto", kind: "cosa" }, Zone.Right);
+    return (
+      <Demo
+        initial={w}
+        registry={REGISTRY}
+        onViewError={(error, { resource }) =>
+          told.push({ domain: resource.domain, message: error.message })
+        }
+      />
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    told.length = 0;
+    await expect(await canvas.findByText("Esta vista no se pudo dibujar")).toBeVisible();
+    await waitFor(() => expect(told).toHaveLength(1));
+    await expect(told[0]).toEqual({
+      domain: "roto",
+      message: "el dominio `roto` siempre lanza — a propósito",
+    });
+    // The rest of the workspace goes on.
+    await expect(await canvas.findByText("FAC-2026-0012")).toBeVisible();
   },
 };
