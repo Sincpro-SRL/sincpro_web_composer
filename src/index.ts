@@ -67,7 +67,13 @@ export {
   type SkinIcons,
 } from "@sincpro/web-composer/shell/skin";
 export { ComposerStyles } from "@sincpro/web-composer/shell/styles";
-export { ViewHost, type ViewHostProps } from "@sincpro/web-composer/shell/ViewHost";
+export {
+  type OnViewError,
+  type ViewErrorAbout,
+  ViewErrorProvider,
+  ViewHost,
+  type ViewHostProps,
+} from "@sincpro/web-composer/shell/ViewHost";
 export {
   agentAvailable,
   type AgentTool,

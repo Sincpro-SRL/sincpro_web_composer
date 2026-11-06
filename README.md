@@ -252,6 +252,26 @@ useViewTool(api, {
 The agent is one more person at the desk: it opens through the same `open`, a phone still turns
 a window into the page, and throwing away what was typed still asks first.
 
+### When a view breaks
+
+Each view draws inside its own boundary: a view that throws while drawing shows a notice in its
+panel and the rest of the workspace goes on. `onViewError` tells the application, once per
+failure, with the reference the view was opened with — hand it to the error reporter the use
+cases report to:
+
+```tsx
+<Composer
+  workspace={workspace}
+  registry={registry}
+  // @sincpro/client-framework's reportError, or the application's own reporter
+  onViewError={(error, { resource }) => reportError(error, `view ${formatRef(resource)}`)}
+/>
+```
+
+A host drawn outside `Composer` (`PanelHost`, `ViewHost`) reads the same handler from
+`ViewErrorProvider`. A handler that throws is ignored: telling about a failure never becomes a
+second one.
+
 ### Testing a view
 
 A view talks to the workspace only through its `api`, so a test checks what it ASKED for — no
