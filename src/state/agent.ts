@@ -72,9 +72,6 @@ function modelContext(): ModelContext | null {
   return g.document?.modelContext ?? g.navigator?.modelContext ?? null;
 }
 
-/** Whether this browser offers tools to an agent at all. */
-export const agentAvailable = (): boolean => modelContext() !== null;
-
 /** A valid tool name from anything: what is not allowed becomes `_`, and it is cut at 128. */
 export const toolName = (text: string): string =>
   text.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 128) || "tool";

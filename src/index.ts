@@ -75,7 +75,6 @@ export {
   type ViewHostProps,
 } from "@sincpro/web-composer/shell/ViewHost";
 export {
-  agentAvailable,
   type AgentTool,
   type AgentToolAnnotations,
   registerAgentTool,
@@ -111,6 +110,5 @@ export {
   useCrumbs,
   useWorkspace,
   useWorkspaceContext,
-  useWorkspaceSlice,
   useWorkspaceState,
 } from "@sincpro/web-composer/state/useWorkspace";

@@ -1,8 +1,6 @@
 import { Axis, type Dock, HandleKind, Zone } from "@sincpro/web-composer/domain/enums";
 import type { ResourceRef } from "@sincpro/web-composer/domain/resource";
 import {
-  MAX_ZONE,
-  MIN_ZONE,
   PAGE,
   type Panel,
   panelsIn,
@@ -316,5 +314,3 @@ export function handles(w: Workspace): readonly Handle[] {
 /** How far an arrow key moves a handle. A mouse-only handle leaves the workspace
  *  half-assembled for anyone who does not use a pointer. */
 export const KEYBOARD_STEP = 0.02;
-
-export const ZONE_LIMITS = { min: MIN_ZONE, max: MAX_ZONE };
