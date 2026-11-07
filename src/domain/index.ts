@@ -23,7 +23,6 @@ export {
   type Slot,
   stableOrder,
   STRIP,
-  ZONE_LIMITS,
 } from "@sincpro/web-composer/domain/layout";
 export {
   localEntries,
@@ -54,7 +53,6 @@ export {
 } from "@sincpro/web-composer/domain/registry";
 export {
   formatRef,
-  isRef,
   parseRef,
   type ResourceRef,
   rootRef,

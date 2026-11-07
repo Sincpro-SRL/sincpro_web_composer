@@ -24,17 +24,6 @@ function parseParams(query: string): Record<string, string> {
   return params;
 }
 
-export function isRef(value: unknown): value is ResourceRef {
-  if (typeof value !== "object" || value === null) return false;
-  const ref = value as ResourceRef;
-  return (
-    typeof ref.domain === "string" &&
-    SEGMENT.test(ref.domain) &&
-    typeof ref.kind === "string" &&
-    SEGMENT.test(ref.kind)
-  );
-}
-
 /** Params are sorted so that two equivalent refs produce the same text and `sameRef` works. */
 export function formatRef(ref: ResourceRef): string {
   const id = ref.id ? `/${encodeURIComponent(ref.id)}` : "";

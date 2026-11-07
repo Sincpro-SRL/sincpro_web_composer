@@ -4,7 +4,7 @@ import {
   type StoreOptions,
   type WorkspaceStore,
 } from "@sincpro/web-composer/state/store";
-import { useMemo, useRef, useSyncExternalStore } from "react";
+import { useRef, useSyncExternalStore } from "react";
 
 /**
  * `useSyncExternalStore` is React, not a state library. What it adds over
@@ -16,20 +16,6 @@ export function useWorkspace(options: StoreOptions = {}): WorkspaceStore {
   const saved = useRef<WorkspaceStore>(null);
   saved.current ??= createWorkspaceStore(options);
   return saved.current;
-}
-
-/**
- * Watch a slice of the workspace and redraw only when THAT slice changes.
- * The selector must return something comparable by identity. Reducers are
- * pure and leave untouched data alone, so `tab.panels` stays the same array
- * until someone moves a panel.
- */
-export function useWorkspaceSlice<T>(
-  store: WorkspaceStore,
-  select: (state: Workspace) => T,
-): T {
-  const read = useMemo(() => () => select(store.get()), [store, select]);
-  return useSyncExternalStore(store.subscribe, read, read);
 }
 
 export function useWorkspaceState(store: WorkspaceStore): Workspace {
