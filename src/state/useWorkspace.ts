@@ -1,4 +1,10 @@
-import type { Crumb, Workspace, WorkspaceApi } from "@sincpro/web-composer/domain/index";
+import {
+  type Crumb,
+  type ResourceRef,
+  sectionOf,
+  type Workspace,
+  type WorkspaceApi,
+} from "@sincpro/web-composer/domain/index";
 import {
   createWorkspaceStore,
   type StoreOptions,
@@ -37,6 +43,24 @@ export function useWorkspaceContext(api: WorkspaceApi) {
  *  title changes, and the API it holds stays the same object on purpose. */
 export function useCrumbs(api: WorkspaceApi): readonly Crumb[] {
   return useSyncExternalStore(api.context.subscribe, api.crumbs, api.crumbs);
+}
+
+/** Whether the workspace is a phone right now, redrawn when it changes (`api.layout`): for what
+ *  a view offers, not for how it is drawn — that is `@container sc-view`, which a narrow side
+ *  panel on a desktop answers too. */
+export function usePhone(api: WorkspaceApi): boolean {
+  return useSyncExternalStore(api.layout.subscribe, api.layout.phone, api.layout.phone);
+}
+
+/** The entry of the app's menu the person is under (`sectionOf`), for a bar or a sidebar to
+ *  mark. One of `sections` itself, so it redraws when the entry changes, not on every move of a
+ *  panel. */
+export function useSection<T extends ResourceRef>(
+  store: WorkspaceStore,
+  sections: readonly T[],
+): T | null {
+  const read = () => sectionOf(store.get(), sections);
+  return useSyncExternalStore(store.subscribe, read, read);
 }
 
 export type { StoreOptions as UseWorkspaceOptions, WorkspaceStore };

@@ -28,6 +28,7 @@ export {
   PAGE,
   PaletteSection,
   PEEK,
+  sectionOf,
   selectionOf,
   Surface,
   Zone,
@@ -108,6 +109,8 @@ export {
 } from "@sincpro/web-composer/state/useKeyboard";
 export {
   useCrumbs,
+  usePhone,
+  useSection,
   useWorkspace,
   useWorkspaceContext,
   useWorkspaceState,

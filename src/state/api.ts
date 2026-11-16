@@ -56,6 +56,9 @@ export type ApiFactory = {
   zoneFor: (spec: ViewSpec | null) => Zone;
   /** The name the shell draws for `ref`: the one its view gave, else its `ViewSpec` title. */
   titleOf: (ref: ResourceRef) => string;
+  /** Whether the workspace is a phone now — the shell measures it. Every view's `api.layout`
+   *  follows it without its API being rebuilt. */
+  setPhone: (phone: boolean) => void;
   /** Stops listening to the store. Call it when the workspace goes away. */
   dispose: () => void;
 };
@@ -65,9 +68,9 @@ export type ApiFactoryOptions = {
   registry?: Registry;
   /** Where `open(ref)` goes without a `to`. The page: what people expect of a click. */
   defaultOpen?: Destination;
-  /** Whether the workspace is a phone right now — read at call time. On a phone a window or a
+  /** Whether the workspace starts as a phone; `setPhone` changes it. On a phone a window or a
    *  side panel opens as the page, and a chooser as a modal (`domain/phone.ts`). */
-  isPhone?: () => boolean;
+  phone?: boolean;
 };
 
 /** A panel's or a modal's frame already says what it shows. One array, so it reads as
@@ -79,10 +82,23 @@ type Pending = { onPick: (value: unknown) => void; question: unknown };
 
 export function createApiFactory(
   store: WorkspaceStore,
-  { registry, defaultOpen = Destination.Page, isPhone = () => false }: ApiFactoryOptions = {},
+  { registry, defaultOpen = Destination.Page, phone = false }: ApiFactoryOptions = {},
 ): ApiFactory {
   const cache = new Map<string, { resource: ResourceRef; api: WorkspaceApi }>();
   const choosers = new Map<string, Pending>();
+
+  /* Not in the store: it is the shell's size, not a place — no URL, no history entry. */
+  let isPhone = phone;
+  const phoneListeners = new Set<() => void>();
+  const layout: WorkspaceApi["layout"] = {
+    phone: () => isPhone,
+    subscribe: (listener) => {
+      phoneListeners.add(listener);
+      return () => {
+        phoneListeners.delete(listener);
+      };
+    },
+  };
 
   const zoneFor: ApiFactory["zoneFor"] = (spec) => spec?.preferredZone ?? Zone.Right;
   const titleOf = (ref: ResourceRef) =>
@@ -132,7 +148,7 @@ export function createApiFactory(
     /** A fresh modal or peek opened from OUTSIDE it is not the chooser that was there: whoever
      *  waited for that one is not waiting for this. From inside, it is the chooser drilling. */
     function open(ref: ResourceRef, asked: Destination, { blur, size }: OpenOptions = {}) {
-      const to = isPhone() ? model.destinationOnPhone(asked) : asked;
+      const to = isPhone ? model.destinationOnPhone(asked) : asked;
       if (to === Destination.Modal && !inModal) forget(model.modalId(model.hostOf(me)));
       if (to === Destination.Peek && !inPeek) forget(PEEK);
       if (to === Destination.Modal)
@@ -200,6 +216,7 @@ export function createApiFactory(
       surface: target.surface,
       over: inModal ? (model.modalOver(store.get(), target.host)?.over ?? null) : null,
       context,
+      layout,
       choosing: (() => {
         const pending = choosers.get(me);
         return pending === undefined ? null : { question: pending.question };
@@ -264,7 +281,7 @@ export function createApiFactory(
           question: options?.question,
         };
         const asked = options?.to ?? Destination.Window;
-        const to = isPhone() ? model.chooserOnPhone(asked) : asked;
+        const to = isPhone ? model.chooserOnPhone(asked) : asked;
         if (to === Destination.Modal) {
           open(ref, to, options);
           ask(model.modalId(model.hostOf(me)), pending);
@@ -306,6 +323,11 @@ export function createApiFactory(
 
     zoneFor,
     titleOf,
+    setPhone: (next) => {
+      if (next === isPhone) return;
+      isPhone = next;
+      for (const listener of phoneListeners) listener();
+    },
     dispose: stop,
   };
 }

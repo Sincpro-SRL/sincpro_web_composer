@@ -116,6 +116,7 @@ export {
   replacePeek,
   resizePanel,
   resizeZone,
+  sectionOf,
   select,
   type Selected,
   selectionOf,

@@ -46,6 +46,7 @@ import {
   resizeZone,
   resolve,
   restore,
+  sectionOf,
   select,
   selectionOf,
   settleModals,
@@ -510,4 +511,42 @@ test("33 · on a phone the page takes the screen and the panels wait hidden, sti
     Zone.Right,
     "the model is untouched: the desk comes back",
   );
+});
+
+test("34 · the menu entry stays marked while the person goes deeper", () => {
+  const menu = [MOVES, APUNTES];
+  let w = start(EMPTY, MOVES);
+  assert.equal(
+    sectionOf(w, menu),
+    MOVES,
+    "one of the entries itself, to compare by identity",
+  );
+
+  w = push(push(w, FAC), ref("contabilidad", "apuntes", "A-1"));
+  assert.equal(sectionOf(w, menu), MOVES, "a record, then its line: still under «Asientos»");
+
+  w = start(w, APUNTES);
+  assert.equal(sectionOf(w, menu), APUNTES, "another entry starts over");
+  assert.equal(sectionOf(start(EMPTY, FAC), menu), null, "a link straight to a record: none");
+  assert.equal(sectionOf(EMPTY, menu), null);
+});
+
+test("35 · a menu entry with a filter is matched exactly first, then by what it shows", () => {
+  const pending = { ...MOVES, params: { state: "pending" } };
+  const menu = [MOVES, pending];
+  assert.equal(sectionOf(start(EMPTY, pending), menu), pending, "the exact entry wins");
+
+  const filtered = start(EMPTY, { ...MOVES, params: { state: "posted" } });
+  assert.equal(sectionOf(filtered, menu), MOVES, "a filter changed: the first that shows it");
+});
+
+test("36 · Back fills in a name forgotten since, from the entry's own memory", () => {
+  const now = { ...push(EMPTY, FAC), titles: { [fmt(FAC)]: "Factura Acme" } };
+  const restored = restore(now, push(EMPTY, MOVES), {
+    trail: [],
+    peekTrail: [],
+    titles: { [fmt(MOVES)]: "Asientos de marzo", [fmt(FAC)]: "old name" },
+  });
+  assert.equal(restored.titles[fmt(MOVES)], "Asientos de marzo");
+  assert.equal(restored.titles[fmt(FAC)], "Factura Acme", "what was named since wins");
 });

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 
 import { type ConfirmDiscard, createWorkspaceStore } from "@sincpro/web-composer";
-import { EMPTY, PAGE, push, toHash } from "@sincpro/web-composer/domain/index";
+import { EMPTY, nameOf, PAGE, push, toHash } from "@sincpro/web-composer/domain/index";
 import { test } from "vitest";
 
 const ASIENTOS = { domain: "contabilidad", kind: "asientos" };
@@ -113,18 +113,23 @@ function fakeBrowser() {
   const calls: string[] = [];
   const handlers = new Map<string, (e: unknown) => void>();
   const location = { hash: "" };
+  /* A real browser keeps each entry's state across a reload: a copy, like `structuredClone`. */
+  const history = {
+    state: null as unknown,
+    pushState: (state: unknown, _t: string, url: string) => {
+      calls.push("push");
+      history.state = structuredClone(state);
+      location.hash = url;
+    },
+    replaceState: (state: unknown, _t: string, url: string) => {
+      calls.push("replace");
+      history.state = structuredClone(state);
+      location.hash = url;
+    },
+  };
   const win = {
     location,
-    history: {
-      pushState: (_s: unknown, _t: string, url: string) => {
-        calls.push("push");
-        location.hash = url;
-      },
-      replaceState: (_s: unknown, _t: string, url: string) => {
-        calls.push("replace");
-        location.hash = url;
-      },
-    },
+    history,
     addEventListener: (type: string, h: (e: unknown) => void) => handlers.set(type, h),
     removeEventListener: (type: string) => handlers.delete(type),
   };
@@ -132,6 +137,7 @@ function fakeBrowser() {
   return {
     calls,
     location,
+    history,
     fire: (type: string, e: unknown) => handlers.get(type)?.(e),
     done: () => delete (globalThis as { window?: unknown }).window,
   };
@@ -151,6 +157,30 @@ test("the browser's Back works: a new place is a history entry, a size is not", 
     browser.location.hash = list;
     browser.fire("popstate", { state: { trail: [], peekTrail: [] } });
     assert.equal(store.get().page?.kind, "asientos");
+  } finally {
+    browser.done();
+  }
+});
+
+test("a reload keeps the breadcrumb and the names the views gave", () => {
+  const browser = fakeBrowser();
+  try {
+    const before = createWorkspaceStore({ hash: true });
+    before.push(ASIENTOS);
+    before.push(FAC);
+    before.setTitle(ASIENTOS, "Asientos de marzo");
+    before.setTitle(FAC, "Factura Acme");
+
+    const reloaded = createWorkspaceStore({ hash: true }).get();
+    assert.equal(reloaded.page?.id, "FAC-12");
+    assert.deepEqual(reloaded.trail, [ASIENTOS], "the crumb back is still there");
+    assert.equal(nameOf(reloaded, ASIENTOS), "Asientos de marzo", "named, not by its kind");
+    assert.equal(nameOf(reloaded, FAC), "Factura Acme");
+
+    browser.history.state = null;
+    const linked = createWorkspaceStore({ hash: true }).get();
+    assert.equal(linked.page?.id, "FAC-12", "a link has no memory");
+    assert.deepEqual(linked.trail, [], "so its page opens alone");
   } finally {
     browser.done();
   }

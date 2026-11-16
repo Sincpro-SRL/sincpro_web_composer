@@ -90,6 +90,8 @@ const told: { domain: string; message: string }[] = [];
 export const LaFallaDeUnaVistaLlegaAlReporte: Story = {
   tags: ["throws"],
   render: () => {
+    /* Antes de dibujar, no en `play`: la vista rota avisa al dibujarse, antes de que `play` corra. */
+    told.length = 0;
     let w = push(EMPTY, ASIENTOS);
     w = openPanel(w, { domain: "roto", kind: "cosa" }, Zone.Right);
     return (
@@ -104,7 +106,6 @@ export const LaFallaDeUnaVistaLlegaAlReporte: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    told.length = 0;
     await expect(await canvas.findByText("Esta vista no se pudo dibujar")).toBeVisible();
     await waitFor(() => expect(told).toHaveLength(1));
     await expect(told[0]).toEqual({

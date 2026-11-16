@@ -104,6 +104,7 @@ const placeOf = (w: Workspace) =>
 const memoryOf = (w: Workspace): SessionMemory => ({
   trail: w.trail,
   peekTrail: w.peekTrail,
+  titles: w.titles,
 });
 
 function isMemory(value: unknown): value is SessionMemory {
@@ -114,6 +115,16 @@ function isMemory(value: unknown): value is SessionMemory {
 function readHash(fallback: Workspace): Workspace {
   if (!inBrowser() || !window.location.hash.startsWith("#/w")) return fallback;
   return model.fromHash(window.location.hash);
+}
+
+/** Where a fresh store starts: the hash, with the memory of its history entry. A reload keeps
+ *  that entry, so the breadcrumb and the names come back with the page; a link has none, and its
+ *  page opens alone. */
+function readPlace(fallback: Workspace): Workspace {
+  const url = readHash(fallback);
+  if (url === fallback) return fallback;
+  const memory: unknown = window.history.state;
+  return isMemory(memory) ? model.restore(url, url, memory) : url;
 }
 
 const onBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -127,7 +138,7 @@ export function createWorkspaceStore({
   onChange,
   confirmDiscard,
 }: StoreOptions = {}): WorkspaceStore {
-  let state = hash ? readHash(initial) : initial;
+  let state = hash ? readPlace(initial) : initial;
   const listeners = new Set<() => void>();
   /** Surface → the resource it has unsaved changes for. */
   const dirty = new Map<string, ResourceRef>();
