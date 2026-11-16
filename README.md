@@ -98,6 +98,7 @@ api.over; // in a modal: the record it was opened over — its context (null els
 api.replace(ref); // show it HERE without a step back: the record a form just created
 api.setParams({ tenant }); // a filter that lives in the reference: survives reload and links
 useCrumbs(api); // the breadcrumb, ready for List.Crumbs / Record.Crumbs — follows setTitle
+usePhone(api); // one screen right now: what a view OFFERS — no «open beside» on a phone
 api.back(); // one step back: the page's breadcrumb, or the peek's own trail
 api.close(); // leave: closes the panel, the peek or the modal; on the page, goes back
 api.expand(); // a window, a side panel or the peek grows into the page
@@ -135,9 +136,17 @@ so the form that asked stays to receive the answer; the peek is the screen's wid
 were already open wait in «Also open», mounted, and one tap brings each to the page. Widen it and
 the desk is back as it was.
 
+A view that wants to know — to offer nothing that opens beside — asks `usePhone(api)`. How it is
+**drawn** at a width is its CSS: every view sits in a container named `sc-view` (the page, a panel,
+the peek, a modal), so `@container sc-view (width < 640px)` answers a narrow side panel on a
+desktop too, which a phone check would not.
+
 From the app, around the workspace: `workspace.start(ref)` starts over from a menu (no
-breadcrumb behind, no peek, the panels stay), and `useWorkspace({ hash: true })` puts the
-workspace in the URL with the browser's Back working. Unsaved changes are asked with the
+breadcrumb behind, no peek, the panels stay), and `useSection(workspace, entries)` says which
+entry of that menu the person is under, to mark it — still the same entry a record and its lines
+deeper. The menu itself is the app's: its groups, its icons, who may see what.
+`useWorkspace({ hash: true })` puts the workspace in the URL with the browser's Back working, and
+a reload keeps the breadcrumb and the names views gave. Unsaved changes are asked with the
 composer's own dialog; `useWorkspace({ confirmDiscard })` replaces it.
 
 ## Where each behaviour lives
@@ -280,7 +289,7 @@ store, no shell, no browser:
 ```ts
 import { createTestApi } from "@sincpro/web-composer";
 
-const t = createTestApi(invoiceRef("F-1")); // { surface, over, crumbs, selection, choosing } optional
+const t = createTestApi(invoiceRef("F-1")); // { surface, over, crumbs, selection, choosing, phone } optional
 render(<Invoice resource={t.api.self} api={t.api} />);
 // … click «Register payment»
 expect(t.callsTo("open")[0].args).toEqual([paymentRef("F-1"), { to: "modal" }]);

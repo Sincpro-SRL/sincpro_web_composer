@@ -37,6 +37,8 @@ export type TestApiOptions = {
   selection?: readonly ResourceRef[];
   /** Opened by `pick` with this question (`api.choosing`). `null` without it: opened to look. */
   choosing?: Choosing | null;
+  /** What `usePhone(api)` / `api.layout.phone()` give. */
+  phone?: boolean;
 };
 
 export type TestApi = {
@@ -57,6 +59,7 @@ export function createTestApi(self: ResourceRef, options: TestApiOptions = {}): 
   const pending: ((value: unknown) => void)[] = [];
   const crumbs = options.crumbs ?? NO_CRUMBS;
   const selection = options.selection ?? NO_REFS;
+  const phone = options.phone ?? false;
 
   const record =
     <K extends ApiCall["method"]>(method: K) =>
@@ -72,6 +75,10 @@ export function createTestApi(self: ResourceRef, options: TestApiOptions = {}): 
     context: {
       focused: () => self,
       selection: () => selection,
+      subscribe: () => () => undefined,
+    },
+    layout: {
+      phone: () => phone,
       subscribe: () => () => undefined,
     },
     open: record("open"),

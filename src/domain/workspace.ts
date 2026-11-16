@@ -607,6 +607,28 @@ export function focusedRef(w: Workspace): ResourceRef | null {
   return refOn(w, w.focus) ?? w.page;
 }
 
+/**
+ * Which of `sections` — the entries of the app's menu — the person is under: the first step of
+ * the way to the page that one of them names. A menu `start`s its entry, so the entry stays
+ * marked while the person goes deeper — a record, its lines, another record. The same entry with
+ * other `params` is still it (a filter changed); when several share it, the first in order wins.
+ * `null` when no step is one of them: a link straight to a record.
+ */
+export function sectionOf<T extends ResourceRef>(
+  w: Workspace,
+  sections: readonly T[],
+): T | null {
+  if (w.page === null) return null;
+  for (const step of [...w.trail, w.page]) {
+    const root = rootRef(step);
+    const named =
+      sections.find((s) => sameRef(s, step)) ??
+      sections.find((s) => sameRef(rootRef(s), root));
+    if (named !== undefined) return named;
+  }
+  return null;
+}
+
 /** Every resource the workspace shows or can go back to. */
 const reachable = (w: Workspace): readonly ResourceRef[] => [
   ...w.trail,

@@ -112,7 +112,7 @@ export type ComposerProps = {
  * frame and swapped it, and a click in that frame landed on a panel that was going away. A
  * workspace with no width yet (hidden, or not laid out) is not a phone.
  */
-function usePhone(root: RefObject<HTMLElement | null>, below: number): boolean {
+function useMeasuredPhone(root: RefObject<HTMLElement | null>, below: number): boolean {
   const [phone, setPhone] = useState(false);
   useLayoutEffect(() => {
     const el = root.current;
@@ -181,23 +181,16 @@ export function Composer({
   );
 
   const root = useRef<HTMLDivElement>(null);
-  const phone = usePhone(root, phoneBelow);
-  /* The API reads it at call time: a view's API is not rebuilt when the window is resized. */
-  const phoneNow = useRef(phone);
-  useLayoutEffect(() => {
-    phoneNow.current = phone;
-  }, [phone]);
+  const phone = useMeasuredPhone(root, phoneBelow);
 
   const api = useMemo(
-    () =>
-      createApiFactory(workspace, {
-        registry,
-        defaultOpen,
-        isPhone: () => phoneNow.current,
-      }),
+    () => createApiFactory(workspace, { registry, defaultOpen }),
     [workspace, registry, defaultOpen],
   );
   useEffect(() => api.dispose, [api]);
+  /* Before paint, like the measure: a view's API is not rebuilt when the window is resized —
+     `api.layout` follows it, and so does what `open` does. */
+  useLayoutEffect(() => api.setPhone(phone), [api, phone]);
 
   useKeyboard({
     workspace,

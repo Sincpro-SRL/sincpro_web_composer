@@ -62,7 +62,9 @@ const CSS = `
 .sc-empty { display: flex; flex: 1; min-height: 0; align-items: center; justify-content: center; padding: 32px; }
 .sc-host { position: relative; flex: 1; min-height: 0; overflow: hidden; }
 .sc-slot { position: absolute; isolation: isolate; min-height: 0; }
-.sc-slot[data-page] { overflow: auto; }
+/* Every view sits in a container named sc-view — the page, a panel, the peek, a modal — so it is
+   drawn for ITS width: @container sc-view (width < 640px). A side panel is narrow on a desktop. */
+.sc-slot[data-page] { overflow: auto; container: sc-view / inline-size; }
 .sc-slot[data-pad="all"] { padding: 4px; }
 .sc-slot[data-pad="x"] { padding: 0 4px; }
 .sc-slot[data-pad="y"] { padding: 4px 0; }
@@ -91,7 +93,7 @@ const CSS = `
 }
 .sc-header[data-rail] .sc-title { min-height: 0; padding: 4px 0; writing-mode: vertical-rl; }
 .sc-body-wrap { position: relative; display: flex; flex: 1; flex-direction: column; min-height: 0; }
-.sc-body { flex: 1; min-height: 0; overflow: auto; container-type: inline-size; }
+.sc-body { flex: 1; min-height: 0; overflow: auto; container: sc-view / inline-size; }
 
 .sc-control {
   display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center;
@@ -153,7 +155,7 @@ const CSS = `
   font-size: var(--_text); font-weight: 600;
 }
 .sc-peek-actions { display: flex; flex-shrink: 0; flex-wrap: wrap; gap: 6px; padding: 6px 12px; border-bottom: 1px solid var(--_line); }
-.sc-peek-body { flex: 1; min-height: 0; overflow: auto; padding: 12px; container-type: inline-size; }
+.sc-peek-body { flex: 1; min-height: 0; overflow: auto; padding: 12px; container: sc-view / inline-size; }
 
 .sc-modal-layer { position: absolute; inset: 0; z-index: 1; }
 .sc-overlay > .sc-modal-layer { z-index: 31; }
@@ -176,7 +178,7 @@ const CSS = `
   flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-size: var(--_text-small); font-weight: 600;
 }
-.sc-modal-body { flex: 1; min-height: 0; overflow: auto; container-type: inline-size; }
+.sc-modal-body { flex: 1; min-height: 0; overflow: auto; container: sc-view / inline-size; }
 
 /* A phone: one screen. The drawer is the screen's width, the modal a sheet from the bottom. */
 .sc-root[data-phone] .sc-peek { width: 100%; border-left: 0; border-radius: 0; }

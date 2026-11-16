@@ -310,7 +310,7 @@ test("`pick` and `open` take the size of the window or the modal", () => {
 
 test("on a phone a window opens as the page, and a chooser as a modal over the form", () => {
   const store = createWorkspaceStore({ initial: push(EMPTY, ASIENTOS) });
-  const factory = createApiFactory(store, { registry: REGISTRY, isPhone: () => true });
+  const factory = createApiFactory(store, { registry: REGISTRY, phone: true });
   const page = factory.for(ASIENTOS, { surface: Surface.Page });
 
   page.open(FAC, { to: Destination.Window });
@@ -324,6 +324,23 @@ test("on a phone a window opens as the page, and a chooser as a modal over the f
   assert.equal(store.get().modals.length, 1);
   factory.for(PAG, { surface: Surface.Modal, host: PAGE }).answer(APUNTE);
   assert.equal(got, "A-1");
+});
+
+test("a view hears the phone come and go, with the same API", () => {
+  const { store, factory, page } = setup();
+  let heard = 0;
+  page.layout.subscribe(() => (heard += 1));
+  assert.equal(page.layout.phone(), false);
+
+  factory.setPhone(true);
+  factory.setPhone(true);
+  assert.equal(heard, 1, "only a change is told");
+  assert.equal(factory.for(ASIENTOS, { surface: Surface.Page }), page, "nothing rebuilt");
+  assert.equal(page.layout.phone(), true);
+
+  page.open(FAC, { to: Destination.Window });
+  assert.equal(store.get().panels.length, 0, "and what it opens follows it");
+  assert.equal(store.get().page?.id, "FAC-12");
 });
 
 test("a chooser can answer any value, not only a reference: a confirmation", () => {
@@ -412,6 +429,11 @@ test("a view is tested as a chooser: it reads its question and its answer is rec
   t.api.answer(FAC);
   assert.deepEqual(t.callsTo("answer")[0]!.args, [FAC]);
   assert.equal(createTestApi(ASIENTOS).api.choosing, null, "without it: opened to look at");
+});
+
+test("a view is tested on a phone: the test api says it is one", () => {
+  assert.equal(createTestApi(ASIENTOS, { phone: true }).api.layout.phone(), true);
+  assert.equal(createTestApi(ASIENTOS).api.layout.phone(), false, "a desktop without it");
 });
 
 test("a view reads the context and publishes its selection", () => {

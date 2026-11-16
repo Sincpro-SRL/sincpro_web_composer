@@ -116,6 +116,17 @@ export type WorkspaceApi = {
     selection: () => readonly ResourceRef[];
     subscribe: (listener: () => void) => () => void;
   };
+  /**
+   * How the workspace is laid out now, read at call time — a view follows it with
+   * `usePhone(api)`. It decides what a view OFFERS: on a phone a window or a side panel opens as
+   * the page, so «open beside» is not worth a button. How a view is DRAWN at a width is the CSS's
+   * (`@container sc-view (width < 640px)`): a side panel is narrow on a desktop too.
+   */
+  layout: {
+    /** One screen: the workspace is narrower than `<Composer phoneBelow>`. */
+    phone: () => boolean;
+    subscribe: (listener: () => void) => () => void;
+  };
 
   /**
    * Open `ref` as a chooser: when its view calls `answer`, `onPick` receives the value and the

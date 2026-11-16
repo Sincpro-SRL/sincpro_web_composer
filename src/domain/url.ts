@@ -136,10 +136,12 @@ export function fromHash(hash: string): Workspace {
   };
 }
 
-/** What the URL does not carry, written into each browser history entry. */
+/** What the URL does not carry, written into each browser history entry — which a reload keeps. */
 export type SessionMemory = {
   trail: readonly ResourceRef[];
   peekTrail: readonly ResourceRef[];
+  /** The names views gave. Optional: an entry written before they rode along has none. */
+  titles?: Readonly<Record<string, string>>;
 };
 
 /** A page reached without memory — a link typed or clicked: one already in the trail goes back
@@ -155,8 +157,9 @@ function trailTo(now: Workspace, page: ResourceRef | null): readonly ResourceRef
 /**
  * The browser moved through its history: the URL says WHERE, the session says how I got there.
  * With the entry's own memory the trails are exact; without it they are reconciled. The
- * selection survives only while its surface still shows the same resource, and the names views
- * gave stay. So does a modal, while what it covers is still there.
+ * selection survives only while its surface still shows the same resource. The names views gave
+ * stay, and the entry's own fill in the ones forgotten since: a crumb whose view is not mounted
+ * reads its name, not its id. A modal stays while what it covers is still there.
  */
 export function restore(
   now: Workspace,
@@ -179,7 +182,7 @@ export function restore(
     trail: url.page === null ? [] : (memory?.trail ?? trailTo(now, url.page)),
     peekTrail,
     selected: keeps ? now.selected : null,
-    titles: now.titles,
+    titles: { ...memory?.titles, ...now.titles },
     modals: now.modals,
   });
 }
