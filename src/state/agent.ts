@@ -294,6 +294,7 @@ export function workspaceTools({
                 {
                   ref: formatRef(entry.ref),
                   label: entry.label,
+                  ...(entry.noun === undefined ? {} : { noun: entry.noun }),
                   ...(entry.detail === undefined ? {} : { detail: entry.detail }),
                 },
               ]

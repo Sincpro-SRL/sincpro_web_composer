@@ -178,6 +178,7 @@ const registry = createRegistry([
     domain: "accounting",
     kind: "entry",
     title: (ref) => `Entry ${ref.id}`,
+    noun: "Entry", // ⌘K says what each record it found is: «Entry · ACME»
     search: async (query) => findEntries(query), // ⌘K asks every domain that searches
     load: async () => (await import("./EntryView")).EntryView, // lazy: a remote module fits here
   },
@@ -198,9 +199,20 @@ installComposerCopy(SPANISH_COMPOSER_COPY); // optional: the composer's words in
 
 export function App() {
   const workspace = useWorkspace();
-  return <Composer workspace={workspace} registry={registry} />;
+  return (
+    <>
+      <button onClick={() => workspace.openPalette()}>Search…</button>
+      <Composer workspace={workspace} registry={registry} />
+    </>
+  );
 }
 ```
+
+`workspace.openPalette()` opens ⌘K from your own bar, as the shortcut does; `openPalette({ query })`
+hands it what was already typed there. Each domain's results show as they arrive: a slow one does
+not hold back the others. A shortcut is written with a Mac's glyphs (⌘K) or the web's words
+(Mod+K) and drawn as each keyboard reads it — Ctrl+K off a Mac; an app that draws shortcuts itself
+does the same with `platformKeys(text)`.
 
 Write a view — it receives its reference and the API, nothing else. It is drawn with whatever
 your app uses; here, web-ui:

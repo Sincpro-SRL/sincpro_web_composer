@@ -30,7 +30,7 @@ import {
 import { registerAgentTools, workspaceTools } from "@sincpro/web-composer/state/agent";
 import { createApiFactory, targetOf } from "@sincpro/web-composer/state/api";
 import { useDropMonitor } from "@sincpro/web-composer/state/drag";
-import type { WorkspaceStore } from "@sincpro/web-composer/state/store";
+import type { OpenPaletteOptions, WorkspaceStore } from "@sincpro/web-composer/state/store";
 import { useKeyboard } from "@sincpro/web-composer/state/useKeyboard";
 import { useWorkspaceState } from "@sincpro/web-composer/state/useWorkspace";
 import {
@@ -89,8 +89,8 @@ export type ComposerProps = {
   /** Where `api.open(ref)` goes when the caller does not say. The page — what people expect of
    *  a click on a record. */
   defaultOpen?: Destination;
-  /** ⌘K, controlled — for a search button in the app's own bar. Without it the composer keeps
-   *  the state and only the shortcut opens it. */
+  /** ⌘K, controlled. Without it the composer keeps the state: the shortcut opens it, and so does
+   *  `workspace.openPalette()` — a «Search…» in the app's own bar needs nothing else. */
   palette?: boolean;
   onPaletteChange?: (open: boolean) => void;
   /** Your design over the composer: icons, the peek drawer, the confirm dialog, the notice, or
@@ -171,6 +171,7 @@ export function Composer({
   const state = useWorkspaceState(workspace);
   const copy = composerCopy();
   const [paletteState, setPaletteState] = useState(false);
+  const [paletteQuery, setPaletteQuery] = useState("");
   const palette = paletteProp ?? paletteState;
   const setPalette = useCallback(
     (open: boolean) => {
@@ -179,6 +180,17 @@ export function Composer({
     },
     [onPaletteChange],
   );
+  const openPalette = useCallback(
+    (options?: OpenPaletteOptions) => {
+      setPaletteQuery(options?.query ?? "");
+      setPalette(true);
+    },
+    [setPalette],
+  );
+  useEffect(() => {
+    workspace.setOpenPalette(openPalette);
+    return () => workspace.setOpenPalette(null);
+  }, [workspace, openPalette]);
 
   const root = useRef<HTMLDivElement>(null);
   const phone = useMeasuredPhone(root, phoneBelow);
@@ -195,7 +207,7 @@ export function Composer({
   useKeyboard({
     workspace,
     enabled: keyboard,
-    onPalette: useCallback(() => setPalette(true), [setPalette]),
+    onPalette: openPalette,
   });
 
   useDropMonitor(
@@ -354,6 +366,7 @@ export function Composer({
           onOpen={open}
           onAction={run}
           onClose={() => setPalette(false)}
+          initialQuery={paletteQuery}
         />
       ) : null}
     </div>

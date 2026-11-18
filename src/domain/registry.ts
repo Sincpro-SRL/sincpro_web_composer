@@ -170,7 +170,8 @@ export type Action = {
   id: string;
   label: string;
   icon?: Icon;
-  /** Drawn, not bound: the palette is where the shortcut gets learned. */
+  /** Drawn, not bound: the palette is where the shortcut gets learned. «⌘E» or «Mod+E», drawn
+   *  as the keyboard in use names it (`platformKeys`). */
   shortcut?: string;
   keywords?: readonly string[];
   /** Receives the API of the surface the resource is on. */
@@ -189,6 +190,9 @@ export type ViewSpec = {
   domain: string;
   kind: string;
   title: (ref: ResourceRef) => string;
+  /** What one of these is called: «Entry», «Member». ⌘K names each record it found with it, so
+   *  three hits with the same name say which is which. `title` names a record, not its kind. */
+  noun?: string;
   icon?: Icon;
   /** Where to open when asked beside the page with no zone. */
   preferredZone?: Zone;

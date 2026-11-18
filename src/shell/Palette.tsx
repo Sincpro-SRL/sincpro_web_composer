@@ -11,13 +11,13 @@ import {
   searchEntries,
 } from "@sincpro/web-composer/domain/index";
 import { composerCopy } from "@sincpro/web-composer/shell/copy";
+import { platformKeys } from "@sincpro/web-composer/shell/keys";
 import { useSkin } from "@sincpro/web-composer/shell/skin";
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   useEffect,
   useId,
   useMemo,
-  useRef,
   useState,
 } from "react";
 
@@ -72,7 +72,10 @@ function useFound(registry: Registry, query: string) {
     let current = true;
     setLoading(true);
     const timer = setTimeout(() => {
-      void searchEntries(registry, query).then((entries) => {
+      const shown = (entries: readonly PaletteEntry[]) => {
+        if (current) setFound(entries);
+      };
+      void searchEntries(registry, query, shown).then((entries) => {
         if (!current) return;
         setFound(entries);
         setLoading(false);
@@ -93,6 +96,8 @@ export type WorkspacePaletteProps = {
   onOpen: (ref: ResourceRef, destination: Destination) => void;
   onAction: (action: Action) => void;
   onClose: () => void;
+  /** What the search box opens with: `workspace.openPalette({ query })`. */
+  initialQuery?: string;
 };
 
 export function WorkspacePalette({
@@ -101,11 +106,12 @@ export function WorkspacePalette({
   onOpen,
   onAction,
   onClose,
+  initialQuery = "",
 }: WorkspacePaletteProps) {
   const copy = composerCopy().palette;
   const SearchIcon = useSkin().icons.search;
   const listId = useId();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [cursor, setCursor] = useState(0);
   const { found, loading } = useFound(registry, query);
 
@@ -116,14 +122,17 @@ export function WorkspacePalette({
   );
   const active = entries[Math.min(cursor, entries.length - 1)];
 
-  /* The focus goes back where it was: the palette is a path, not a place. */
-  const returnTo = useRef<Element | null>(null);
-  useEffect(() => {
-    returnTo.current = document.activeElement;
-    return () => {
-      if (returnTo.current instanceof HTMLElement) returnTo.current.focus();
-    };
-  }, []);
+  /* The focus goes back where it was: the palette is a path, not a place. Read while rendering:
+     by the time an effect runs, `autoFocus` has already moved it into the query. */
+  const [returnTo] = useState(() =>
+    typeof document === "undefined" ? null : document.activeElement,
+  );
+  useEffect(
+    () => () => {
+      if (returnTo instanceof HTMLElement) returnTo.focus();
+    },
+    [returnTo],
+  );
 
   function run(entry: PaletteEntry, destination: Destination) {
     onClose();
@@ -203,12 +212,15 @@ export function WorkspacePalette({
                     {Icon === undefined ? null : <Icon strokeWidth={2} />}
                   </span>
                   <span className="sc-option-label">{entry.label}</span>
-                  {entry.section !== PaletteSection.Actions && entry.detail !== undefined ? (
-                    <span className="sc-option-detail">{entry.detail}</span>
+                  {entry.section !== PaletteSection.Actions &&
+                  (entry.noun !== undefined || entry.detail !== undefined) ? (
+                    <span className="sc-option-detail">
+                      {[entry.noun, entry.detail].filter(Boolean).join(" · ")}
+                    </span>
                   ) : null}
                   {entry.section === PaletteSection.Actions &&
                   entry.shortcut !== undefined ? (
-                    <kbd className="sc-kbd">{entry.shortcut}</kbd>
+                    <kbd className="sc-kbd">{platformKeys(entry.shortcut)}</kbd>
                   ) : null}
                 </div>
               </li>
@@ -220,7 +232,7 @@ export function WorkspacePalette({
           {loading ? <li className="sc-palette-empty">{copy.searching}</li> : null}
         </ul>
 
-        <p className="sc-palette-hint">{copy.hint}</p>
+        <p className="sc-palette-hint">{platformKeys(copy.hint)}</p>
       </div>
     </div>
   );

@@ -37,6 +37,7 @@ const SPECS: readonly ViewSpec[] = [
     domain: "contabilidad",
     kind: "asiento",
     title: (r) => `Asiento ${r.id}`,
+    noun: "Asiento",
     actions: () => [
       { id: "post", label: "Publicar", run: (api) => api.setTitle("publicado") },
     ],
@@ -131,7 +132,7 @@ test("the workspace as tools: where, open, search and act go through the same wo
 
   const hits = await run(tool("workspace.search"), { query: "fac 12" });
   assert.deepEqual(hits, [
-    { ref: "contabilidad:asiento/FAC-12", label: "FAC-12", detail: "Acme" },
+    { ref: "contabilidad:asiento/FAC-12", label: "FAC-12", noun: "Asiento", detail: "Acme" },
   ]);
 
   await run(tool("workspace.open"), { ref: "contabilidad:asiento/FAC-12", to: "side" });
