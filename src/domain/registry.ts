@@ -170,7 +170,8 @@ export type Action = {
   id: string;
   label: string;
   icon?: Icon;
-  /** Drawn, not bound: the palette is where the shortcut gets learned. */
+  /** Drawn, not bound: the palette is where the shortcut gets learned. «⌘E» or «Mod+E», drawn
+   *  as the keyboard in use names it (`platformKeys`). */
   shortcut?: string;
   keywords?: readonly string[];
   /** Receives the API of the surface the resource is on. */

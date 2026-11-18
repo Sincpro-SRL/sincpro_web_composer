@@ -208,9 +208,11 @@ export function App() {
 }
 ```
 
-`workspace.openPalette()` opens ⌘K from your own bar, as the shortcut does. The shortcuts are
-written the Mac way (⌘K, ⌥↵) and drawn as each keyboard reads them: Ctrl+K and Alt+↵ off a Mac. An
-app that draws shortcuts itself does the same with `platformKeys(text)`.
+`workspace.openPalette()` opens ⌘K from your own bar, as the shortcut does; `openPalette({ query })`
+hands it what was already typed there. Each domain's results show as they arrive: a slow one does
+not hold back the others. A shortcut is written with a Mac's glyphs (⌘K) or the web's words
+(Mod+K) and drawn as each keyboard reads it — Ctrl+K off a Mac; an app that draws shortcuts itself
+does the same with `platformKeys(text)`.
 
 Write a view — it receives its reference and the API, nothing else. It is drawn with whatever
 your app uses; here, web-ui:

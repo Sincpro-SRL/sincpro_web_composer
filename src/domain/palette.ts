@@ -1,4 +1,9 @@
-import type { Action, Registry, ViewSpec } from "@sincpro/web-composer/domain/registry";
+import type {
+  Action,
+  Registry,
+  SearchHit,
+  ViewSpec,
+} from "@sincpro/web-composer/domain/registry";
 import { formatRef, type ResourceRef } from "@sincpro/web-composer/domain/resource";
 
 /**
@@ -94,26 +99,23 @@ export function localEntries(
   return [...actions, ...goto];
 }
 
-/** Asks every domain that searches. A domain that fails is logged and left
- *  out; the others still answer. */
+/** Asks every domain that searches. Each answer is added as it arrives and `onAnswer` hears the
+ *  list so far: a slow domain does not hold back the quick ones, and what is already on screen
+ *  never moves under the cursor. A domain that fails is logged and left out; the others still
+ *  answer. Resolves with every answer, for whoever needs them all (an agent). */
 export async function searchEntries(
   registry: Registry,
   query: string,
+  onAnswer?: (found: readonly PaletteEntry[]) => void,
 ): Promise<readonly PaletteEntry[]> {
   const text = query.trim();
   if (text.length < MIN_QUERY) return [];
 
-  const specs = registry.all().filter((spec) => spec.search !== undefined);
-  const answers = await Promise.allSettled(specs.map((spec) => spec.search!(text)));
-
   const seen = new Set<string>();
   const found: PaletteEntry[] = [];
-  answers.forEach((answer, i) => {
-    if (answer.status === "rejected") {
-      console.warn(`[composer] search failed in «${specs[i]?.domain}»`, answer.reason);
-      return;
-    }
-    for (const hit of answer.value) {
+
+  function add(hits: readonly SearchHit[]) {
+    for (const hit of hits) {
       const id = `found:${formatRef(hit.ref)}`;
       if (seen.has(id)) continue;
       seen.add(id);
@@ -129,6 +131,19 @@ export async function searchEntries(
         ref: hit.ref,
       });
     }
-  });
+    onAnswer?.([...found]);
+  }
+
+  const specs = registry.all().filter((spec) => spec.search !== undefined);
+  await Promise.all(
+    specs.map((spec) =>
+      /* A search that throws instead of rejecting is a failure too, not the end of all of them. */
+      Promise.resolve()
+        .then(() => spec.search!(text))
+        .then(add, (reason: unknown) => {
+          console.warn(`[composer] search failed in «${spec.domain}»`, reason);
+        }),
+    ),
+  );
   return found;
 }

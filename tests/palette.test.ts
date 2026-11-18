@@ -116,6 +116,44 @@ test("a found record says what it is, by its own kind and not the searching doma
   );
 });
 
+test("each domain's answer shows as it arrives: a slow one does not hold back the others", async () => {
+  let release = () => {};
+  const slow = new Promise<void>((resolve) => (release = resolve));
+  const hit = (kind: string, label: string) => ({
+    ref: { domain: "d", kind, id: "1" },
+    label,
+  });
+  const registry = createRegistry([
+    {
+      domain: "d",
+      kind: "lento",
+      title: () => "x",
+      search: async () => {
+        await slow;
+        return [hit("lento", "Lento")];
+      },
+      load: async () => View,
+    },
+    {
+      domain: "d",
+      kind: "rapido",
+      title: () => "x",
+      search: async () => [hit("rapido", "Rápido")],
+      load: async () => View,
+    },
+  ]);
+  const heard: string[][] = [];
+  const all = searchEntries(registry, "ab", (sofar) => heard.push(sofar.map((e) => e.label)));
+  await vi.waitFor(() => assert.deepEqual(heard, [["Rápido"]]));
+  release();
+  assert.deepEqual(
+    (await all).map((e) => e.label),
+    ["Rápido", "Lento"],
+    "appended: nothing moves under the cursor",
+  );
+  assert.deepEqual(heard, [["Rápido"], ["Rápido", "Lento"]]);
+});
+
 test("off a Mac the shortcuts name Ctrl, Alt and Shift; on one they stay", () => {
   const hint = "↵ page · ⌥↵ peek · ⇧↵ beside · ⌘↵ window";
   assert.equal(
@@ -125,4 +163,10 @@ test("off a Mac the shortcuts name Ctrl, Alt and Shift; on one they stay", () =>
   assert.equal(platformKeys("⌘⌥[ / ⌘⌥]", false), "Ctrl+Alt+[ / Ctrl+Alt+]");
   assert.equal(platformKeys(hint, true), hint);
   assert.equal(platformKeys("Esc", false), "Esc", "a key without a modifier is untouched");
+});
+
+test("Mod is ⌘ on a Mac and Ctrl elsewhere: the web's notation works too", () => {
+  assert.equal(platformKeys("Mod+Shift+⏎ · Alt+↵", true), "⌘⇧⏎ · ⌥↵");
+  assert.equal(platformKeys("Mod+Shift+⏎ · Alt+↵", false), "Ctrl+Shift+⏎ · Alt+↵");
+  assert.equal(platformKeys("mod+k", false), "Ctrl+k", "any case");
 });

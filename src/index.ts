@@ -95,6 +95,7 @@ export {
 export {
   type ConfirmDiscard,
   createWorkspaceStore,
+  type OpenPaletteOptions,
   type StoreOptions,
   type WorkspaceStore,
 } from "@sincpro/web-composer/state/store";

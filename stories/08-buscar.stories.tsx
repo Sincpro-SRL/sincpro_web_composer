@@ -1,8 +1,10 @@
-import { Composer, useWorkspace } from "@sincpro/web-composer";
+import { Composer, useWorkspace, type ViewSpec } from "@sincpro/web-composer";
+import { createRegistry } from "@sincpro/web-composer/domain/index";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { Demo, REGISTRY, soloLaLista } from "./contabilidad/demo";
+import { CONTABILIDAD } from "./contabilidad/dominio";
 
 const meta: Meta = {
   title: "Casos de uso/08 · Buscar sin salir de donde estoy: ⌘K",
@@ -130,7 +132,7 @@ function ConBuscar() {
       style={{ height: "42rem" }}
       className="flex flex-col overflow-hidden border-y border-line-strong"
     >
-      <nav aria-label="Menú" className="flex border-b border-line p-2">
+      <nav aria-label="Menú" className="flex gap-2 border-b border-line p-2">
         <button
           type="button"
           onClick={() => workspace.openPalette()}
@@ -138,6 +140,20 @@ function ConBuscar() {
         >
           Buscar…
         </button>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const query = new FormData(e.currentTarget).get("q");
+            workspace.openPalette({ query: typeof query === "string" ? query : "" });
+          }}
+        >
+          <input
+            name="q"
+            aria-label="Buscar en todo"
+            placeholder="Buscar en todo"
+            className="rounded-control border border-line px-2 py-1"
+          />
+        </form>
       </nav>
       <Composer workspace={workspace} registry={REGISTRY} />
     </div>
@@ -159,5 +175,57 @@ export const UnBotonAbreLaBusqueda: Story = {
     await userEvent.keyboard("{Escape}");
     await expect(canvas.queryByRole("combobox")).toBeNull();
     await expect(buscar).toHaveFocus();
+  },
+};
+
+/** Un buscador en la barra de la aplicación le pasa lo que ya se escribió:
+ *  `workspace.openPalette({ query })` abre ⌘K con ese texto y ya buscando. */
+export const LaBarraLePasaLoEscrito: Story = {
+  render: () => <ConBuscar />,
+  play: async ({ canvasElement }) => {
+    inBrowserMode();
+    const canvas = within(canvasElement);
+    await userEvent.type(
+      await canvas.findByRole("textbox", { name: "Buscar en todo" }),
+      "0013{Enter}",
+    );
+    await expect(await canvas.findByRole("combobox")).toHaveValue("0013");
+    await expect(await canvas.findByRole("option", { name: /FAC-2026-0013/ })).toBeVisible();
+  },
+};
+
+/* Un banco que contesta cuando la story lo suelta: así se ve, sin carreras, lo que ya llegó
+   mientras otro dominio sigue pensando. */
+let soltarElBanco = () => {};
+const BANCO_LENTO: ViewSpec = {
+  domain: "banco",
+  kind: "cuenta",
+  noun: "Cuenta bancaria",
+  title: () => "Cuenta bancaria",
+  search: async () => {
+    await new Promise<void>((resolve) => (soltarElBanco = resolve));
+    return [
+      { ref: { domain: "banco", kind: "cuenta", id: "bnb" }, label: "Initech Ltda. · BNB" },
+    ];
+  },
+  load: async () => () => null,
+};
+const CON_BANCO_LENTO = createRegistry([...CONTABILIDAD, BANCO_LENTO]);
+
+/** Cada dominio aparece apenas contesta: el contacto y sus asientos ya se ven mientras el banco
+ *  sigue «buscando…»; lo que llega después se agrega abajo, sin mover lo que ya estaba. */
+export const UnDominioLentoNoFrenaALosOtros: Story = {
+  render: () => <Demo initial={soloLaLista()} registry={CON_BANCO_LENTO} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await open(canvas, "initech");
+    await canvas.findByRole("option", { name: /Contacto · NIT 3040506070/ });
+    await canvas.findAllByRole("option", { name: /Asiento · Initech Ltda\./ });
+    await expect(canvas.getByText("buscando…")).toBeVisible();
+    await expect(canvas.queryByRole("option", { name: /Cuenta bancaria/ })).toBeNull();
+
+    soltarElBanco();
+    await canvas.findByRole("option", { name: /Cuenta bancaria/ });
+    await waitFor(() => expect(canvas.queryByText("buscando…")).toBeNull());
   },
 };

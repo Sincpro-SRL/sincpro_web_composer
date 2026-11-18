@@ -72,7 +72,10 @@ function useFound(registry: Registry, query: string) {
     let current = true;
     setLoading(true);
     const timer = setTimeout(() => {
-      void searchEntries(registry, query).then((entries) => {
+      const shown = (entries: readonly PaletteEntry[]) => {
+        if (current) setFound(entries);
+      };
+      void searchEntries(registry, query, shown).then((entries) => {
         if (!current) return;
         setFound(entries);
         setLoading(false);
@@ -93,6 +96,8 @@ export type WorkspacePaletteProps = {
   onOpen: (ref: ResourceRef, destination: Destination) => void;
   onAction: (action: Action) => void;
   onClose: () => void;
+  /** What the search box opens with: `workspace.openPalette({ query })`. */
+  initialQuery?: string;
 };
 
 export function WorkspacePalette({
@@ -101,11 +106,12 @@ export function WorkspacePalette({
   onOpen,
   onAction,
   onClose,
+  initialQuery = "",
 }: WorkspacePaletteProps) {
   const copy = composerCopy().palette;
   const SearchIcon = useSkin().icons.search;
   const listId = useId();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [cursor, setCursor] = useState(0);
   const { found, loading } = useFound(registry, query);
 
