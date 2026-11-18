@@ -42,6 +42,7 @@ export {
   SPANISH_COMPOSER_COPY,
 } from "@sincpro/web-composer/shell/copy";
 export { type IconProps } from "@sincpro/web-composer/shell/icons";
+export { platformKeys } from "@sincpro/web-composer/shell/keys";
 export {
   ModalLayer,
   type ModalLayerProps,

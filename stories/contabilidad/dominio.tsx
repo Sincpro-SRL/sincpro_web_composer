@@ -51,6 +51,7 @@ export const CONTABILIDAD: readonly ViewSpec[] = [
     kind: "asiento",
     icon: FileText,
     title: (ref) => ref.id ?? "Asiento",
+    noun: "Asiento",
     preferredZone: Zone.Right,
     actions: (ref) => [
       {
@@ -113,6 +114,7 @@ export const CONTABILIDAD: readonly ViewSpec[] = [
     kind: "contacto",
     icon: UserRound,
     title: (ref) => contactoNombre(ref.id),
+    noun: "Contacto",
     preferredZone: Zone.Right,
     search: async (query) => {
       await later(null, 200);

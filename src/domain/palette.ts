@@ -22,6 +22,8 @@ export type PaletteEntry =
       section: typeof PaletteSection.Goto | typeof PaletteSection.Found;
       id: string;
       label: string;
+      /** A found record's kind, from its `ViewSpec`: «Entry». */
+      noun?: string;
       detail?: string;
       icon?: Icon;
       ref: ResourceRef;
@@ -115,13 +117,15 @@ export async function searchEntries(
       const id = `found:${formatRef(hit.ref)}`;
       if (seen.has(id)) continue;
       seen.add(id);
-      const icon = registry.resolve(hit.ref)?.icon;
+      /* The hit's own kind, not the searching domain's: one search may answer with several. */
+      const spec = registry.resolve(hit.ref);
       found.push({
         section: PaletteSection.Found,
         id,
         label: hit.label,
+        ...(spec?.noun === undefined ? {} : { noun: spec.noun }),
         ...(hit.detail === undefined ? {} : { detail: hit.detail }),
-        ...(icon === undefined ? {} : { icon }),
+        ...(spec?.icon === undefined ? {} : { icon: spec.icon }),
         ref: hit.ref,
       });
     }

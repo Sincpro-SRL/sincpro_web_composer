@@ -1,4 +1,4 @@
-import { composerCopy } from "@sincpro/web-composer";
+import { composerCopy, platformKeys } from "@sincpro/web-composer";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 
@@ -24,7 +24,7 @@ function Shortcuts() {
     <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 border-b border-line bg-surface px-4 py-3 text-micro">
       {composerCopy().shortcuts.map((s) => (
         <div key={s.keys} className="contents">
-          <dt className="font-mono text-ink">{s.keys}</dt>
+          <dt className="font-mono text-ink">{platformKeys(s.keys)}</dt>
           <dd className="text-muted">{s.action}</dd>
         </div>
       ))}

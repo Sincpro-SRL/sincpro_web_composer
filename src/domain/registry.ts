@@ -189,6 +189,9 @@ export type ViewSpec = {
   domain: string;
   kind: string;
   title: (ref: ResourceRef) => string;
+  /** What one of these is called: «Entry», «Member». ⌘K names each record it found with it, so
+   *  three hits with the same name say which is which. `title` names a record, not its kind. */
+  noun?: string;
   icon?: Icon;
   /** Where to open when asked beside the page with no zone. */
   preferredZone?: Zone;

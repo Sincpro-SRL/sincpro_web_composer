@@ -1,7 +1,8 @@
+import { Composer, useWorkspace } from "@sincpro/web-composer";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
-import { Demo, soloLaLista } from "./contabilidad/demo";
+import { Demo, REGISTRY, soloLaLista } from "./contabilidad/demo";
 
 const meta: Meta = {
   title: "Casos de uso/08 · Buscar sin salir de donde estoy: ⌘K",
@@ -98,5 +99,65 @@ export const AccionesDelRegistroEnFoco: Story = {
         await canvas.findByRole("region", { name: /Apuntes de FAC-2026-0012/ }),
       ).toBeVisible(),
     );
+  },
+};
+
+/** «Initech» es un contacto y también el de dos asientos: cada hallado dice qué es, con el
+ *  `noun` que declara su dominio, junto a su detalle. */
+export const CadaHalladoDiceQueEs: Story = {
+  render: () => <Demo initial={soloLaLista()} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await open(canvas, "initech");
+    await expect(
+      await canvas.findByRole("option", {
+        name: /Initech Ltda\.\s*Contacto · NIT 3040506070/,
+      }),
+    ).toBeVisible();
+    const asientos = await canvas.findAllByRole("option", {
+      name: /Asiento · Initech Ltda\./,
+    });
+    await expect(asientos.length).toBeGreaterThan(0);
+  },
+};
+
+/** La barra es de la aplicación y tiene el store, no el `<Composer>`: su «Buscar…» llama a
+ *  `workspace.openPalette()`, que abre ⌘K igual que el atajo. Al cerrar, el foco vuelve al botón. */
+function ConBuscar() {
+  const workspace = useWorkspace({ initial: soloLaLista() });
+  return (
+    <div
+      style={{ height: "42rem" }}
+      className="flex flex-col overflow-hidden border-y border-line-strong"
+    >
+      <nav aria-label="Menú" className="flex border-b border-line p-2">
+        <button
+          type="button"
+          onClick={() => workspace.openPalette()}
+          className="rounded-pill px-3 py-1 text-muted"
+        >
+          Buscar…
+        </button>
+      </nav>
+      <Composer workspace={workspace} registry={REGISTRY} />
+    </div>
+  );
+}
+
+export const UnBotonAbreLaBusqueda: Story = {
+  render: () => <ConBuscar />,
+  play: async ({ canvasElement }) => {
+    inBrowserMode();
+    const canvas = within(canvasElement);
+    const buscar = await canvas.findByRole("button", { name: "Buscar…" });
+    await userEvent.click(buscar);
+    const query = await canvas.findByRole("combobox");
+    await expect(query).toHaveFocus();
+
+    await userEvent.type(query, "0013");
+    await canvas.findByRole("option", { name: /FAC-2026-0013/ });
+    await userEvent.keyboard("{Escape}");
+    await expect(canvas.queryByRole("combobox")).toBeNull();
+    await expect(buscar).toHaveFocus();
   },
 };

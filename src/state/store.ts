@@ -77,6 +77,12 @@ export type WorkspaceStore = {
   setDirty: (surface: string, ref: ResourceRef, dirty: boolean) => void;
   /** Where `<Composer>` installs its own dialog. A `confirmDiscard` given to the store wins. */
   setConfirmDiscard: (confirm: ConfirmDiscard | null) => void;
+
+  /** ⌘K, as the shortcut opens it — for a «Search…» in the app's own menu, which holds the
+   *  store and not the `<Composer>`. Nothing while no `<Composer>` draws this workspace. */
+  openPalette: () => void;
+  /** Where `<Composer>` installs its palette. */
+  setOpenPalette: (open: (() => void) | null) => void;
 };
 
 export type StoreOptions = {
@@ -143,6 +149,7 @@ export function createWorkspaceStore({
   /** Surface → the resource it has unsaved changes for. */
   const dirty = new Map<string, ResourceRef>();
   let installed: ConfirmDiscard | null = null;
+  let palette: (() => void) | null = null;
   let guarding = false;
   /** A discard being asked asynchronously: every change after it waits in line, so
    *  `back(); open(ref)` keeps its order. */
@@ -315,6 +322,11 @@ export function createWorkspaceStore({
     },
     setConfirmDiscard: (confirm) => {
       installed = confirm;
+    },
+
+    openPalette: () => palette?.(),
+    setOpenPalette: (open) => {
+      palette = open;
     },
   };
 }

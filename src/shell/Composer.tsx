@@ -89,8 +89,8 @@ export type ComposerProps = {
   /** Where `api.open(ref)` goes when the caller does not say. The page — what people expect of
    *  a click on a record. */
   defaultOpen?: Destination;
-  /** ⌘K, controlled — for a search button in the app's own bar. Without it the composer keeps
-   *  the state and only the shortcut opens it. */
+  /** ⌘K, controlled. Without it the composer keeps the state: the shortcut opens it, and so does
+   *  `workspace.openPalette()` — a «Search…» in the app's own bar needs nothing else. */
   palette?: boolean;
   onPaletteChange?: (open: boolean) => void;
   /** Your design over the composer: icons, the peek drawer, the confirm dialog, the notice, or
@@ -179,6 +179,10 @@ export function Composer({
     },
     [onPaletteChange],
   );
+  useEffect(() => {
+    workspace.setOpenPalette(() => setPalette(true));
+    return () => workspace.setOpenPalette(null);
+  }, [workspace, setPalette]);
 
   const root = useRef<HTMLDivElement>(null);
   const phone = useMeasuredPhone(root, phoneBelow);

@@ -8,6 +8,7 @@ import {
   searchEntries,
   type ViewSpec,
 } from "@sincpro/web-composer/domain/index";
+import { platformKeys } from "@sincpro/web-composer/shell/keys";
 import { test, vi } from "vitest";
 
 const View = () => null;
@@ -81,4 +82,47 @@ test("a failing domain does not take the others' results with it", async () => {
   assert.equal(warn.mock.calls.length, 1, "the failure is logged, not swallowed");
   assert.deepEqual(await searchEntries(REGISTRY, "F"), [], "one letter asks nobody");
   warn.mockRestore();
+});
+
+test("a found record says what it is, by its own kind and not the searching domain's", async () => {
+  const maria = (kind: string) => ({ domain: "cauor", kind, id: "7" });
+  const registry = createRegistry([
+    {
+      domain: "cauor",
+      kind: "colegiado",
+      noun: "Colegiado",
+      title: () => "María",
+      search: async () => [
+        { ref: maria("colegiado"), label: "María", detail: "MFAQ0123" },
+        { ref: maria("cuenta"), label: "María" },
+      ],
+      load: async () => View,
+    },
+    {
+      domain: "cauor",
+      kind: "cuenta",
+      noun: "Cuenta",
+      title: () => "x",
+      load: async () => View,
+    },
+  ]);
+  const found = await searchEntries(registry, "maria");
+  assert.deepEqual(
+    found.map((e) => (e.section === PaletteSection.Actions ? null : [e.noun, e.detail])),
+    [
+      ["Colegiado", "MFAQ0123"],
+      ["Cuenta", undefined],
+    ],
+  );
+});
+
+test("off a Mac the shortcuts name Ctrl, Alt and Shift; on one they stay", () => {
+  const hint = "↵ page · ⌥↵ peek · ⇧↵ beside · ⌘↵ window";
+  assert.equal(
+    platformKeys(hint, false),
+    "↵ page · Alt+↵ peek · Shift+↵ beside · Ctrl+↵ window",
+  );
+  assert.equal(platformKeys("⌘⌥[ / ⌘⌥]", false), "Ctrl+Alt+[ / Ctrl+Alt+]");
+  assert.equal(platformKeys(hint, true), hint);
+  assert.equal(platformKeys("Esc", false), "Esc", "a key without a modifier is untouched");
 });
