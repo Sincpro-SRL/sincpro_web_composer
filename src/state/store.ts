@@ -96,6 +96,15 @@ export type StoreOptions = {
   /** Persist the workspace in the URL hash. The browser's Back and «share this link» come
    *  from here. */
   hash?: boolean;
+  /**
+   * The page is drawn on the server and hydrated (SSR, React Server Components). With `hash`,
+   * the store starts at `initial` — what the server drew: it never sees the hash — and takes the
+   * URL's place once in the browser: when `useWorkspace` mounts, when someone first listens
+   * (`<Composer>`, `useWorkspaceState`, `useSection`) or before its first change, whichever comes
+   * first. Without it `hash` reads the URL at once, which a single-page app wants: the link's
+   * place on its first frame. Without `hash` it changes nothing.
+   */
+  serverRendered?: boolean;
   /** Called after every change. Hook for telemetry or saving the user's workspace. */
   onChange?: (state: Workspace) => void;
   /** Asked before a change throws away a view with unsaved changes. Without it, `<Composer>`
@@ -144,13 +153,33 @@ const onBeforeUnload = (e: BeforeUnloadEvent) => {
   e.returnValue = "";
 };
 
+/** What a `serverRendered` store with `hash` keeps for the hooks. */
+export type Hydration = {
+  /** What the server drew: hydrating, the browser draws the same. */
+  server: () => Workspace;
+  /** Takes the URL's place now, if it has not yet. */
+  takeUrl: () => void;
+};
+
+/**
+ * Context: the hooks' business, not the app's — so it is not a member of `WorkspaceStore`, whose
+ * shape stays the same for whoever builds one of their own (a fake in a test).
+ */
+const hydrations = new WeakMap<WorkspaceStore, Hydration>();
+
+export const hydrationOf = (store: WorkspaceStore): Hydration | null =>
+  hydrations.get(store) ?? null;
+
 export function createWorkspaceStore({
   initial = model.EMPTY,
   hash = false,
+  serverRendered = false,
   onChange,
   confirmDiscard,
 }: StoreOptions = {}): WorkspaceStore {
-  let state = hash ? readPlace(initial) : initial;
+  /** The URL's place, not read yet: it waits for the browser (`serverRendered`). */
+  let waiting = hash && serverRendered;
+  let state = hash && !waiting ? readPlace(initial) : initial;
   const listeners = new Set<() => void>();
   /** Surface → the resource it has unsaved changes for. */
   const dirty = new Map<string, ResourceRef>();
@@ -165,6 +194,17 @@ export function createWorkspaceStore({
     for (const l of listeners) l();
     onChange?.(state);
   };
+
+  /** The URL's place, read once in the browser and announced like any change: until now
+   *  everyone drew `initial`. */
+  function takeUrl() {
+    if (!waiting || !inBrowser()) return;
+    waiting = false;
+    const url = readPlace(initial);
+    if (url === state) return;
+    state = url;
+    notify();
+  }
 
   /** The browser asks before closing the tab only while something is unsaved. */
   function guardUnload() {
@@ -230,7 +270,10 @@ export function createWorkspaceStore({
     return answer instanceof Promise ? answer.then(proceed) : proceed(answer);
   }
 
+  /** A change starts from where the URL says: a store that moved before reading it would write
+   *  its own place over the link. */
   function go(change: (w: Workspace) => Workspace, mode: History = History.Auto) {
+    takeUrl();
     const result = line === null ? run(change, mode) : line.then(() => run(change, mode));
     if (!(result instanceof Promise)) return;
     line = result;
@@ -268,7 +311,10 @@ export function createWorkspaceStore({
     else settle(answer);
   }
 
+  /** Hydrating, React listens only after drawing what the server drew: the first listener in
+   *  the browser is when the URL's place can be taken. */
   const subscribe = (listener: () => void): Unsubscribe => {
+    takeUrl();
     listeners.add(listener);
     if (listeners.size === 1 && hash && inBrowser())
       window.addEventListener("popstate", onPopState);
@@ -279,7 +325,7 @@ export function createWorkspaceStore({
     };
   };
 
-  return {
+  const store: WorkspaceStore = {
     get: () => state,
     subscribe,
     apply: (change) => go(change),
@@ -335,4 +381,6 @@ export function createWorkspaceStore({
       palette = open;
     },
   };
+  if (waiting) hydrations.set(store, { server: () => initial, takeUrl });
+  return store;
 }

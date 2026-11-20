@@ -1,3 +1,5 @@
+"use client";
+
 import { Zone } from "@sincpro/web-composer/domain/index";
 import { type ComposerCopy, composerCopy } from "@sincpro/web-composer/shell/copy";
 import type { IconProps } from "@sincpro/web-composer/shell/icons";

@@ -1,3 +1,5 @@
+"use client";
+
 import { MODAL, PAGE, PEEK } from "@sincpro/web-composer/domain/index";
 import type { WorkspaceStore } from "@sincpro/web-composer/state/store";
 import { useEffect } from "react";

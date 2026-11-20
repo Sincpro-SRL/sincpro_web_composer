@@ -146,8 +146,9 @@ breadcrumb behind, no peek, the panels stay), and `useSection(workspace, entries
 entry of that menu the person is under, to mark it — still the same entry a record and its lines
 deeper. The menu itself is the app's: its groups, its icons, who may see what.
 `useWorkspace({ hash: true })` puts the workspace in the URL with the browser's Back working, and
-a reload keeps the breadcrumb and the names views gave. Unsaved changes are asked with the
-composer's own dialog; `useWorkspace({ confirmDiscard })` replaces it.
+a reload keeps the breadcrumb and the names views gave — drawn on a server too, add
+`serverRendered: true` ([Server rendering](#server-rendering)). Unsaved changes are asked with
+the composer's own dialog; `useWorkspace({ confirmDiscard })` replaces it.
 
 ## Where each behaviour lives
 
@@ -307,6 +308,42 @@ render(<Invoice resource={t.api.self} api={t.api} />);
 expect(t.callsTo("open")[0].args).toEqual([paymentRef("F-1"), { to: "modal" }]);
 t.respond(true); // answers the last chooser it opened, as its view would
 ```
+
+### Server rendering
+
+It works in a server-rendered app — Next.js (App Router or Pages Router), any SSR —, and nothing
+changes for a single-page app.
+
+- **Server Components** may import from `@sincpro/web-composer`. Every module that needs the
+  browser (hooks, context, events) starts with `"use client"`, and a test keeps it so; the model
+  (`@sincpro/web-composer/domain`), `createWorkspaceStore`, the copy and `platformKeys` stay
+  callable from a server. The workspace itself lives in the browser: hold it in a client
+  component of your own, and draw `<Composer>` there.
+- **The workspace in the URL.** The browser never sends the hash to the server.
+  `useWorkspace({ hash: true })` reads it as the store is created — a single-page app shows the
+  link's place on its first frame —, so hydrating, the browser would draw a place the server did
+  not: a hydration error. A server-rendered app asks for
+
+  ```tsx
+  "use client";
+  const workspace = useWorkspace({ hash: true, serverRendered: true });
+  ```
+
+  It starts at `initial`, what the server drew, and takes the URL's place once mounted, with its
+  breadcrumb on a reload — before the effects of the component that holds it, so
+  `if (workspace.get().page === null) workspace.start(home)` in an effect still sees the link.
+  `createWorkspaceStore({ hash: true, serverRendered: true })` does the same on its first
+  listener or its first change, whichever comes first.
+
+- **Drag and drop** is loaded by the browser when the workspace mounts, never on import: a
+  server — plain Node included — imports and draws the composer without touching
+  `@atlaskit/pragmatic-drag-and-drop`. The browser's bundle still gets it, as any dependency.
+- **The words.** `installComposerCopy` sets the one global there is, and a server renders every
+  request in one process: install it in a module every page loads (the root layout's client
+  providers), never in one page.
+
+The story «16 · Dibujado en el servidor» draws the workspace with `renderToString`, opens a link
+and hydrates it in Chrome: no difference with the server, then the link's record.
 
 ## Your design over it
 
