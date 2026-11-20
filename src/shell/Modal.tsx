@@ -1,3 +1,5 @@
+"use client";
+
 import {
   type Modal,
   modalId,

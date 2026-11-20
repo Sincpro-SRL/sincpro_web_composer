@@ -25,6 +25,9 @@ does not go in. This file is how to keep it.
 - **Words** come from the copy table (`src/shell/copy.ts`), English and Spanish together.
 - **Escape is claimed:** whatever consumes it calls `preventDefault`; the workspace ignores a
   claimed one.
+- **Client boundary.** A module with hooks, context or event handlers starts with
+  `"use client";`; pure logic (`domain/`, the store, the API, the copy) stays without it
+  (`tests/clientBoundary.test.ts`).
 
 ## Testing
 
@@ -48,4 +51,10 @@ behaviour arrives with its story; a rule of the model, also with a test in `test
   what its host shows (`settleModals` runs after every change). Never portal a view's own dialog
   to the body to block one panel: that blocks the whole workspace.
 - Use the current React (19) and its features (`<style href precedence>`, `useSyncExternalStore`).
+- A server draws the composer too, and the browser's first render must be the server's: what is
+  drawn before mount never reads the browser (the URL, the width) — it is read after mount, as
+  `useMeasuredPhone` does. A store with `hash` reads the URL at once unless `serverRendered`
+  (`tests/ssr.test.ts`, story 16).
+- Drag and drop is reached only through `withDragAdapter` in an effect, never imported
+  statically: the adapter resolves only through a bundler, and a server must import the package.
 - Never `git commit`: changes are prepared and staged; the commit is the user's.

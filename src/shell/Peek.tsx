@@ -1,3 +1,5 @@
+"use client";
+
 import { composerCopy } from "@sincpro/web-composer/shell/copy";
 import type { IconProps } from "@sincpro/web-composer/shell/icons";
 import { type ConfirmProps, type PeekProps, useSkin } from "@sincpro/web-composer/shell/skin";

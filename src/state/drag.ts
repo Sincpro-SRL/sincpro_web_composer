@@ -1,11 +1,49 @@
-import {
-  draggable,
-  dropTargetForElements,
-  monitorForElements,
-} from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+"use client";
+
+import type * as DragAdapter from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import type { Zone } from "@sincpro/web-composer/domain/index";
 import { type Dock, DragKind, type ResourceRef } from "@sincpro/web-composer/domain/index";
 import { type RefObject, useEffect, useState } from "react";
+
+type Adapter = typeof DragAdapter;
+type Cleanup = () => void;
+
+let adapter: Adapter | null = null;
+let loading: Promise<Adapter> | null = null;
+
+/**
+ * Context: the drag-and-drop adapter is loaded the first time a browser registers a drag or a
+ * drop, never on import. It resolves only through a bundler (a folder with its own
+ * `package.json`, extensionless imports inside): imported statically, a server — plain Node, a
+ * framework's server render — could not even import the composer. Effects never run on a
+ * server, so a server never asks for it. Once loaded it is kept: every registration after the
+ * first is immediate, as it always was.
+ *
+ * A chunk that fails to load leaves nothing draggable and the workspace working; the next
+ * element that mounts asks for it again.
+ */
+function withDragAdapter(register: (loaded: Adapter) => Cleanup): Cleanup {
+  if (adapter !== null) return register(adapter);
+  let cleanup: Cleanup | null = null;
+  let gone = false;
+  loading ??= import("@atlaskit/pragmatic-drag-and-drop/element/adapter").then(
+    (loaded) => (adapter = loaded),
+    (error: unknown) => {
+      loading = null;
+      throw error;
+    },
+  );
+  loading.then(
+    (loaded) => {
+      if (!gone) cleanup = register(loaded);
+    },
+    () => undefined,
+  );
+  return () => {
+    gone = true;
+    cleanup?.();
+  };
+}
 
 export type DragData =
   | { kind: typeof DragKind.Panel; panelId: string }
@@ -31,15 +69,17 @@ export function useDraggablePanel(
     const el = ref.current;
     if (el === null || !enabled) return;
 
-    return draggable({
-      element: el,
-      getInitialData: (): DragData & Record<string, unknown> => ({
-        kind: DragKind.Panel,
-        panelId,
+    return withDragAdapter(({ draggable }) =>
+      draggable({
+        element: el,
+        getInitialData: (): DragData & Record<string, unknown> => ({
+          kind: DragKind.Panel,
+          panelId,
+        }),
+        onDragStart: () => setDragging(true),
+        onDrop: () => setDragging(false),
       }),
-      onDragStart: () => setDragging(true),
-      onDrop: () => setDragging(false),
-    });
+    );
   }, [ref, panelId, enabled]);
 
   return dragging;
@@ -52,16 +92,18 @@ export function useDropZone(ref: RefObject<HTMLElement | null>, zone: Dock): boo
     const el = ref.current;
     if (el === null) return;
 
-    return dropTargetForElements({
-      element: el,
-      getData: (): DropData & Record<string, unknown> => ({ kind: DragKind.Zone, zone }),
-      canDrop: ({ source }) =>
-        isDrag(source.data) &&
-        (source.data.kind === DragKind.Panel || source.data.kind === DragKind.Ref),
-      onDragEnter: () => setOver(true),
-      onDragLeave: () => setOver(false),
-      onDrop: () => setOver(false),
-    });
+    return withDragAdapter(({ dropTargetForElements }) =>
+      dropTargetForElements({
+        element: el,
+        getData: (): DropData & Record<string, unknown> => ({ kind: DragKind.Zone, zone }),
+        canDrop: ({ source }) =>
+          isDrag(source.data) &&
+          (source.data.kind === DragKind.Panel || source.data.kind === DragKind.Ref),
+        onDragEnter: () => setOver(true),
+        onDragLeave: () => setOver(false),
+        onDrop: () => setOver(false),
+      }),
+    );
   }, [ref, zone]);
 
   return over;
@@ -79,15 +121,17 @@ export function useDraggableRef(
     const el = ref.current;
     if (el === null || !enabled) return;
 
-    return draggable({
-      element: el,
-      getInitialData: (): DragData & Record<string, unknown> => ({
-        kind: DragKind.Ref,
-        ref: resource,
+    return withDragAdapter(({ draggable }) =>
+      draggable({
+        element: el,
+        getInitialData: (): DragData & Record<string, unknown> => ({
+          kind: DragKind.Ref,
+          ref: resource,
+        }),
+        onDragStart: () => setDragging(true),
+        onDrop: () => setDragging(false),
       }),
-      onDragStart: () => setDragging(true),
-      onDrop: () => setDragging(false),
-    });
+    );
   }, [ref, resource, enabled]);
 
   return dragging;
@@ -101,13 +145,15 @@ export function usePanelDragArmed(): boolean {
 
   useEffect(
     () =>
-      monitorForElements({
-        canMonitor: ({ source }) =>
-          isDrag(source.data) &&
-          (source.data.kind === DragKind.Panel || source.data.kind === DragKind.Ref),
-        onDragStart: () => setArmed(true),
-        onDrop: () => setArmed(false),
-      }),
+      withDragAdapter(({ monitorForElements }) =>
+        monitorForElements({
+          canMonitor: ({ source }) =>
+            isDrag(source.data) &&
+            (source.data.kind === DragKind.Panel || source.data.kind === DragKind.Ref),
+          onDragStart: () => setArmed(true),
+          onDrop: () => setArmed(false),
+        }),
+      ),
     [],
   );
 
@@ -124,24 +170,26 @@ export type DropHandlers = {
 export function useDropMonitor({ onPanelToZone, onRefToZone }: DropHandlers): void {
   useEffect(
     () =>
-      monitorForElements({
-        canMonitor: ({ source }) => isDrag(source.data),
-        onDrop: ({ source, location }) => {
-          const target = location.current.dropTargets[0];
-          if (target === undefined || !isDrag(source.data)) return;
+      withDragAdapter(({ monitorForElements }) =>
+        monitorForElements({
+          canMonitor: ({ source }) => isDrag(source.data),
+          onDrop: ({ source, location }) => {
+            const target = location.current.dropTargets[0];
+            if (target === undefined || !isDrag(source.data)) return;
 
-          const data = target.data as unknown as DropData;
+            const data = target.data as unknown as DropData;
 
-          if (source.data.kind === DragKind.Panel && data.kind === DragKind.Zone) {
-            onPanelToZone(source.data.panelId, data.zone);
-            return;
-          }
-          if (source.data.kind === DragKind.Ref && data.kind === DragKind.Zone) {
-            onRefToZone(source.data.ref, data.zone);
-            return;
-          }
-        },
-      }),
+            if (source.data.kind === DragKind.Panel && data.kind === DragKind.Zone) {
+              onPanelToZone(source.data.panelId, data.zone);
+              return;
+            }
+            if (source.data.kind === DragKind.Ref && data.kind === DragKind.Zone) {
+              onRefToZone(source.data.ref, data.zone);
+              return;
+            }
+          },
+        }),
+      ),
     [onPanelToZone, onRefToZone],
   );
 }

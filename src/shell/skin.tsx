@@ -1,3 +1,5 @@
+"use client";
+
 import type { Size } from "@sincpro/web-composer/domain/index";
 import {
   BackIcon,
